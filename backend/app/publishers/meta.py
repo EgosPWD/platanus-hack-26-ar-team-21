@@ -75,21 +75,45 @@ class MetaPublisher(Publisher):
     ) -> PublisherResult:
         # 1) Validaciones de pre-condición ----------------------------------
         if proposal.status != ProposalStatus.approved:
+            # Esto es un bug del caller — no persistimos Campaign por
+            # algo que el usuario no provocó.
             return PublisherResult(
                 success=False,
                 error=f"Proposal {proposal.id} no está aprobada (status={proposal.status.value}).",
             )
 
-        assets = _ready_assets(proposal)
-        if not assets:
-            return PublisherResult(
-                success=False,
-                error="No hay creatividades listas para publicar.",
-            )
-
         merchant = await db.get(Merchant, proposal.merchant_id)
         if merchant is None:
             return PublisherResult(success=False, error="Merchant no encontrado.")
+
+        assets = _ready_assets(proposal)
+        if not assets:
+            # No hay imágenes — persistimos Campaign 'failed' para que el
+            # merchant lo vea en /campaigns con un mensaje accionable. El
+            # botón "Reintentar publicación" después funciona si las
+            # creatividades se regeneran y quedan ready.
+            error_msg = (
+                "No hay creatividades listas para publicar. La generación "
+                "de imágenes falló (probablemente tu cuota de OpenRouter "
+                "se agotó). Volvé a la propuesta y regenerá las variantes — "
+                "después tocá 'Reintentar publicación' acá."
+            )
+            failed_campaign = Campaign(
+                merchant_id=merchant.id,
+                proposal_id=proposal.id,
+                publisher=self.publisher_name,
+                kind="meta_ads",
+                status=CampaignStatus.failed,
+                creative_count=0,
+                error_message=error_msg,
+                payload_snapshot={
+                    "reason": "no_ready_assets",
+                    "asset_count": 0,
+                },
+            )
+            db.add(failed_campaign)
+            await db.commit()
+            return PublisherResult(success=False, error=error_msg)
 
         product: Product | None = None
         if proposal.product_id:

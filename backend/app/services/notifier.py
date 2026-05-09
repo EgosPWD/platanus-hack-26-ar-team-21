@@ -316,6 +316,9 @@ _USER_ACTIONABLE_KEYWORDS = (
     "expired",
     "ad account",
     "Ad account",
+    "creatividades",
+    "openrouter",
+    "regenerá",
 )
 
 
