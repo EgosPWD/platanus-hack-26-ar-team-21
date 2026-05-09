@@ -7,6 +7,7 @@ import {
   Loader2,
   Pencil,
   RefreshCw,
+  RotateCcw,
   Sparkles,
   X,
 } from "lucide-react";
@@ -306,7 +307,14 @@ export function ProposalCard({
           )}
 
           {local.status === "approved" && (
-            <CampaignMiniCard campaign={campaign} />
+            <CampaignMiniCard
+              campaign={campaign}
+              onRetried={() => {
+                // Reseteamos el polling para que el efecto vuelva a fetch.
+                setCampaign(null);
+                campaignPollCountRef.current = 0;
+              }}
+            />
           )}
 
           {(local.status === "pending" || local.status === "modified") && (
@@ -498,7 +506,16 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function CampaignMiniCard({ campaign }: { campaign: Campaign | null }) {
+function CampaignMiniCard({
+  campaign,
+  onRetried,
+}: {
+  campaign: Campaign | null;
+  onRetried?: () => void;
+}) {
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
+
   // Caso 1: todavía no llegó respuesta del backend → asumimos que está
   // creándose (acabamos de aprobar y el background task arrancó).
   if (!campaign || campaign.status === "creating" || campaign.status === "pending") {
@@ -513,17 +530,55 @@ function CampaignMiniCard({ campaign }: { campaign: Campaign | null }) {
   }
 
   if (campaign.status === "failed") {
+    const handleRetry = async () => {
+      setRetrying(true);
+      setRetryError(null);
+      try {
+        await api.retryCampaign(campaign.id);
+        onRetried?.();
+      } catch (err) {
+        if (err instanceof ApiError) {
+          setRetryError(`No pude reintentar (HTTP ${err.status}).`);
+        } else {
+          setRetryError("No pude reintentar.");
+        }
+      } finally {
+        setRetrying(false);
+      }
+    };
+
     return (
-      <div className="flex flex-col gap-2 rounded-md border border-accent/40 bg-accent/5 p-3 text-accent sm:flex-row sm:items-start">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.8} />
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="font-mono text-[10px] uppercase tracking-wider">
-            Falló la creación
-          </span>
-          <span className="break-words text-sm">
-            {campaign.error_message ?? "Algo se rompió creando la campaña."}
+      <div className="flex flex-col gap-3 rounded-md border border-accent/40 bg-accent/5 p-3 text-accent">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.8} />
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="font-mono text-[10px] uppercase tracking-wider">
+              Falló la creación en Meta
+            </span>
+            <span className="break-words text-sm">
+              {campaign.error_message ?? "Algo se rompió creando la campaña."}
+            </span>
+          </div>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Button
+            onClick={handleRetry}
+            disabled={retrying}
+            className="w-full sm:w-auto"
+          >
+            <RotateCcw
+              className={cn("mr-2 h-4 w-4", retrying && "animate-spin")}
+              strokeWidth={1.8}
+            />
+            {retrying ? "Reintentando…" : "Reintentar publicación"}
+          </Button>
+          <span className="font-mono text-[10px] text-muted-foreground">
+            Reusa las mismas fotos. No regenera nada.
           </span>
         </div>
+        {retryError && (
+          <p className="font-mono text-xs text-accent">{retryError}</p>
+        )}
       </div>
     );
   }

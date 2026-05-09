@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { ExternalLink, Loader2, RefreshCw, RotateCcw } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,8 @@ export function CampaignCard({
 }) {
   const [local, setLocal] = useState<Campaign>(campaign);
   const [refreshing, setRefreshing] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [retryToast, setRetryToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = async () => {
@@ -54,6 +56,26 @@ export function CampaignCard({
       }
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const retry = async () => {
+    setRetrying(true);
+    setError(null);
+    setRetryToast(null);
+    try {
+      await api.retryCampaign(local.id);
+      setRetryToast(
+        "Reintentando con las mismas creatividades. La campaña nueva aparece arriba en 30–90 seg.",
+      );
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(`No pude reintentar (HTTP ${err.status}).`);
+      } else {
+        setError("No pude reintentar.");
+      }
+    } finally {
+      setRetrying(false);
     }
   };
 
@@ -150,8 +172,24 @@ export function CampaignCard({
           )}
 
           {error && <p className="font-mono text-xs text-accent">{error}</p>}
+          {retryToast && !error && (
+            <p className="font-mono text-xs text-emerald-700">{retryToast}</p>
+          )}
 
           <footer className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            {local.status === "failed" && (
+              <Button
+                onClick={retry}
+                disabled={retrying}
+                className="w-full sm:w-auto"
+              >
+                <RotateCcw
+                  className={cn("mr-2 h-4 w-4", retrying && "animate-spin")}
+                  strokeWidth={1.8}
+                />
+                {retrying ? "Reintentando…" : "Reintentar publicación"}
+              </Button>
+            )}
             {local.external_url && (
               <a
                 href={local.external_url}

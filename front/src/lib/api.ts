@@ -264,6 +264,8 @@ export const api = {
   getCampaign: (id: string) => apiFetch<Campaign>(`/campaigns/${id}`),
   refreshCampaign: (id: string) =>
     apiFetch<Campaign>(`/campaigns/${id}/refresh`, { method: "POST" }),
+  retryCampaign: (id: string) =>
+    apiFetch<Campaign>(`/campaigns/${id}/retry`, { method: "POST" }),
   getCampaignForProposal: (proposalId: string) =>
     apiFetch<Campaign>(`/proposals/${proposalId}/campaign`),
 };

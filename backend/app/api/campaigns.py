@@ -1,6 +1,7 @@
 """Endpoints de campañas (Capa 6)."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -225,6 +226,73 @@ async def refresh_campaign(
     await db.commit()
     await db.refresh(campaign)
 
+    return _serialize(campaign, product)
+
+
+# --- Retry de campañas fallidas --------------------------------------------
+
+
+@router.post("/{campaign_id}/retry", response_model=CampaignRead, status_code=status.HTTP_202_ACCEPTED)
+async def retry_campaign(
+    campaign_id: uuid.UUID,
+    merchant: CurrentMerchant,
+    db: DbSession,
+) -> CampaignRead:
+    """Reintenta la publicación en Meta usando los MISMOS assets de la
+    propuesta — no regenera imágenes ni gasta tokens de OpenRouter.
+
+    Crea una Campaign NUEVA (status='creating' → 'created' o 'failed'). La
+    fallida queda como historial. La mini-card del front toma siempre la
+    última creada para esa propuesta, así que la UI se actualiza sola.
+    """
+    campaign, _ = await _load_campaign_for_merchant(db, merchant.id, campaign_id)
+    if campaign is None:
+        raise HTTPException(status_code=404, detail="Campaña no encontrada")
+    if campaign.status != CampaignStatus.failed:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Solo puedo reintentar campañas en estado 'failed' "
+                f"(esta está en '{campaign.status.value}')."
+            ),
+        )
+
+    proposal = await db.get(Proposal, campaign.proposal_id)
+    if proposal is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No encontré la propuesta original. ¿Fue borrada?",
+        )
+
+    # Validar que todavía hay assets ready — si las imágenes se perdieron, no
+    # podemos retry sin regenerar (por diseño, esto se reusa, no se pisa).
+    raw_assets = proposal.generated_assets or []
+    has_ready = (
+        isinstance(raw_assets, list)
+        and any(
+            isinstance(a, dict) and a.get("status") == "ready" and a.get("url")
+            for a in raw_assets
+        )
+    )
+    if not has_ready:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "La propuesta no tiene creatividades listas. "
+                "Regenerá las imágenes desde la propuesta antes de reintentar."
+            ),
+        )
+
+    # Disparar la creación en background. Reusamos exactamente la misma lógica
+    # que el approve original — el publisher persiste su propia Campaign nueva.
+    from app.api.proposals import _safe_publish_to_meta  # evita ciclo de import
+
+    asyncio.create_task(_safe_publish_to_meta(proposal.id))
+
+    # Devolvemos la fallida (con su error_message intacto) como respuesta
+    # inmediata. El front debería pollear /proposals/{id}/campaign para ver
+    # cuándo aparece la nueva intentona.
+    product = await _product_for_campaign(db, campaign)
     return _serialize(campaign, product)
 
 
