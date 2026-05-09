@@ -233,6 +233,7 @@ class MetaPublisher(Publisher):
                 message=copy_es,
                 link=landing_url,
                 call_to_action="SHOP_NOW",
+                page_id=settings.META_PAGE_ID or None,
             )
             logger.info(
                 "publisher | step=create_ad creative_id=%s variant=%s",

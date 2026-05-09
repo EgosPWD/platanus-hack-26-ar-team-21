@@ -105,6 +105,12 @@ def _map_fb_error(exc: FacebookRequestError) -> MetaAdsError:
             "Business Manager con permiso de 'Manage Ad Account', y que el "
             "token incluya ads_management."
         )
+    elif code == 100 and subcode == 1443121:
+        msg = (
+            "Falta una Facebook Page asociada a los ads. Seteá META_PAGE_ID "
+            "en el .env con el ID de tu página de Facebook (Business Manager "
+            "→ Pages → Settings → About → 'Page ID')."
+        )
     elif code == 100:
         # "Invalid parameter" puro y duro. Damos lo que tengamos —
         # detail puede ser el mensaje de Meta o un user_msg específico.

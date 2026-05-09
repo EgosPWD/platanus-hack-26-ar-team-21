@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     META_DEFAULT_COUNTRY: str = "AR"
     META_DEFAULT_AGE_MIN: int = 18
     META_DEFAULT_AGE_MAX: int = 65
+    # Facebook Page ID que va a "publicar" los ads. Meta exige una Page
+    # asociada al ad account para link_data ads (subcode 1443121).
+    META_PAGE_ID: str = ""
     # Hard switch: si es False NO publicar. Esto NO se cambia sin auditoría.
     # Toda creación de campaign/adset/ad pasa status="PAUSED" sí o sí —
     # esta flag adicional es defensa en profundidad.
