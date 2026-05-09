@@ -52,9 +52,24 @@ def _map_fb_error(exc: FacebookRequestError) -> MetaAdsError:
     code = exc.api_error_code()
     subcode = exc.api_error_subcode()
     raw_msg = exc.api_error_message() or str(exc)
+    lowered = raw_msg.lower()
 
     if code == 190:
         msg = "Token de Meta inválido o expirado. Generá un nuevo System User Token."
+    elif code == 100 and (
+        "does not exist" in lowered
+        or "missing permissions" in lowered
+        or "cannot be loaded" in lowered
+    ):
+        # Meta devuelve 100 para muchas cosas. Cuando el mensaje habla de
+        # "does not exist" o "missing permissions" es realmente un problema
+        # de acceso al ad account, no un parámetro inválido. Reframeamos.
+        msg = (
+            "El token de Meta no tiene acceso a este ad account. "
+            "Verificá que el System User esté asignado al ad account en el "
+            "Business Manager con permiso de 'Manage Ad Account', y que el "
+            "token incluya ads_management."
+        )
     elif code == 100:
         msg = f"Parámetro inválido en Meta: {raw_msg}"
     elif code == 17:
