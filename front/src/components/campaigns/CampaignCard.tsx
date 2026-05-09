@@ -31,14 +31,16 @@ const STATUS_TONE: Record<Campaign["status"], string> = {
 export function CampaignCard({
   campaign,
   onUpdated,
+  onRetried,
 }: {
   campaign: Campaign;
   onUpdated?: (updated: Campaign) => void;
+  onRetried?: () => void;
 }) {
   const [local, setLocal] = useState<Campaign>(campaign);
   const [refreshing, setRefreshing] = useState(false);
   const [retrying, setRetrying] = useState(false);
-  const [retryToast, setRetryToast] = useState<string | null>(null);
+  const [retried, setRetried] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = async () => {
@@ -62,12 +64,11 @@ export function CampaignCard({
   const retry = async () => {
     setRetrying(true);
     setError(null);
-    setRetryToast(null);
     try {
       await api.retryCampaign(local.id);
-      setRetryToast(
-        "Reintentando con las mismas creatividades. La campaña nueva aparece arriba en 30–90 seg.",
-      );
+      // Optimistic UI: ocultar error + botón, mostrar banner ámbar.
+      setRetried(true);
+      onRetried?.();
     } catch (err) {
       if (err instanceof ApiError) {
         setError(`No pude reintentar (HTTP ${err.status}).`);
@@ -122,10 +123,12 @@ export function CampaignCard({
             <span
               className={cn(
                 "shrink-0 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-wider",
-                STATUS_TONE[local.status],
+                retried
+                  ? "border-amber-600 text-amber-700"
+                  : STATUS_TONE[local.status],
               )}
             >
-              {STATUS_LABEL[local.status]}
+              {retried ? "Reintentado" : STATUS_LABEL[local.status]}
             </span>
           </header>
 
@@ -158,9 +161,19 @@ export function CampaignCard({
             )}
           </dl>
 
-          {local.status === "failed" && local.error_message && (
+          {local.status === "failed" && local.error_message && !retried && (
             <div className="rounded-md border border-accent/40 bg-accent/5 p-3 text-sm text-accent">
               {local.error_message}
+            </div>
+          )}
+
+          {retried && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-600/30 bg-amber-50 p-3 text-sm text-amber-900">
+              <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" strokeWidth={1.8} />
+              <span>
+                Reintentando con las mismas creatividades. La campaña nueva
+                aparece arriba en 30–90 seg.
+              </span>
             </div>
           )}
 
@@ -186,12 +199,9 @@ export function CampaignCard({
           )}
 
           {error && <p className="font-mono text-xs text-accent">{error}</p>}
-          {retryToast && !error && (
-            <p className="font-mono text-xs text-emerald-700">{retryToast}</p>
-          )}
 
           <footer className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-            {local.status === "failed" && (
+            {local.status === "failed" && !retried && (
               <Button
                 onClick={retry}
                 disabled={retrying}

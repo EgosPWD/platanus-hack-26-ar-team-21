@@ -129,7 +129,12 @@ export default function CampaignsPage() {
       ) : (
         <div className="flex flex-col gap-6">
           {filtered.map((c) => (
-            <CampaignCard key={c.id} campaign={c} onUpdated={updateOne} />
+            <CampaignCard
+              key={c.id}
+              campaign={c}
+              onUpdated={updateOne}
+              onRetried={() => void load()}
+            />
           ))}
         </div>
       )}
