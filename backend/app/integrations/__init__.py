@@ -15,4 +15,9 @@ if settings.USE_META_MOCK:
 else:
     from app.integrations.meta_ads import MetaAdsClient
 
-__all__ = ["ShopifyClient", "MetaAdsClient"]
+if settings.USE_OPENROUTER_MOCK:
+    from app.integrations.openrouter_mock import OpenRouterImageClient
+else:
+    from app.integrations.openrouter_client import OpenRouterImageClient
+
+__all__ = ["ShopifyClient", "MetaAdsClient", "OpenRouterImageClient"]

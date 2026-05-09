@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -15,12 +16,16 @@ from app.schemas.proposals import (
     ProposalDecision,
     ProposalRead,
 )
+from app.services.image_gen import clear_assets, generate_creatives_for_proposal
 
 logger = logging.getLogger("vera.api.proposals")
 router = APIRouter(prefix="/proposals", tags=["proposals"])
 
 
 def _serialize_proposal(p: Proposal, product: Product | None) -> ProposalRead:
+    raw_assets = p.generated_assets
+    # Defensa contra filas viejas con `{}` en vez de `[]` (pre-migración 0004).
+    assets_list = raw_assets if isinstance(raw_assets, list) else []
     return ProposalRead(
         id=p.id,
         merchant_id=p.merchant_id,
@@ -29,7 +34,7 @@ def _serialize_proposal(p: Proposal, product: Product | None) -> ProposalRead:
         status=p.status.value,
         reasoning=p.reasoning,
         payload=p.payload or {},
-        generated_assets=p.generated_assets or {},
+        generated_assets=assets_list,
         created_at=p.created_at,
         decided_at=p.decided_at,
         product=ProductSnapshot.model_validate(product) if product else None,
@@ -149,6 +154,61 @@ async def get_proposal(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Propuesta no encontrada",
         )
+    return _serialize_proposal(proposal, product)
+
+
+@router.post(
+    "/{proposal_id}/generate",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ProposalRead,
+)
+async def generate_creatives(
+    proposal_id: uuid.UUID,
+    merchant: CurrentMerchant,
+    db: DbSession,
+) -> ProposalRead:
+    """Dispara la generación en background. No espera a que termine.
+
+    Si ya hay assets `ready`, devuelve 409 — el caller debería usar /regenerate
+    si quiere reemplazarlos.
+    """
+    proposal, product = await _load_proposal_with_product(db, merchant.id, proposal_id)
+    if proposal is None:
+        raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+
+    existing = proposal.generated_assets or []
+    has_ready = any(a.get("status") == "ready" for a in existing)
+    if has_ready:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ya hay creatividades generadas. Usá /regenerate para reemplazarlas.",
+        )
+
+    asyncio.create_task(generate_creatives_for_proposal(proposal_id))
+    # La proposal todavía no tiene los assets en generating — los crea el task.
+    # Devolvemos lo que hay ahora (vacío) para que el front empiece a hacer polling.
+    await db.refresh(proposal)
+    return _serialize_proposal(proposal, product)
+
+
+@router.post(
+    "/{proposal_id}/regenerate",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ProposalRead,
+)
+async def regenerate_creatives(
+    proposal_id: uuid.UUID,
+    merchant: CurrentMerchant,
+    db: DbSession,
+) -> ProposalRead:
+    """Borra los assets viejos y dispara una corrida nueva."""
+    proposal, product = await _load_proposal_with_product(db, merchant.id, proposal_id)
+    if proposal is None:
+        raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+
+    await clear_assets(proposal_id)
+    asyncio.create_task(generate_creatives_for_proposal(proposal_id))
+    await db.refresh(proposal)
     return _serialize_proposal(proposal, product)
 
 

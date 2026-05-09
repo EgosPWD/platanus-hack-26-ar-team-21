@@ -4,6 +4,7 @@ Cada nodo es una función async que recibe (state, db) y devuelve el state
 actualizado. Las funciones son módulo-level a propósito para que `graph.py`
 las pueda envolver con la sesión de DB y `simple.py` las pueda encadenar.
 """
+import asyncio
 import logging
 import time
 from datetime import datetime, timedelta, timezone
@@ -328,6 +329,14 @@ async def compose_proposal(state: VeraState, db: AsyncSession) -> VeraState:
         "Armá la propuesta como te indiqué."
     )
 
+    # Fecha en español argentino — Windows no soporta %-d, así que la armamos a mano.
+    now = datetime.now(timezone.utc)
+    months_es = [
+        "enero", "febrero", "marzo", "abril", "mayo", "junio",
+        "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+    ]
+    today_es = f"{now.day} de {months_es[now.month - 1]} de {now.year}"
+
     try:
         llm = _make_llm(temperature=0.6)
         structured = llm.with_structured_output(_ComposedProposal)
@@ -337,6 +346,7 @@ async def compose_proposal(state: VeraState, db: AsyncSession) -> VeraState:
                     content=COMPOSE_SYSTEM_PROMPT.format(
                         product_name=top["name"],
                         merchant_name=merchant_name,
+                        today_es=today_es,
                     )
                 ),
                 HumanMessage(content=user_msg),
@@ -413,7 +423,7 @@ async def persist_proposal(state: VeraState, db: AsyncSession) -> VeraState:
             status=ProposalStatus.pending,
             reasoning=reasoning,
             payload=state["proposal_payload"],
-            generated_assets={},
+            generated_assets=[],
         )
         db.add(proposal)
         await db.flush()
@@ -436,4 +446,25 @@ async def persist_proposal(state: VeraState, db: AsyncSession) -> VeraState:
         run.id,
         time.perf_counter() - started,
     )
+
+    # Kick-off de generación de creatividades en background. La task tiene su
+    # propia AsyncSession (ver image_gen.async_session_factory) — no comparte la
+    # sesión del request. Si el agente decidió `skip` o no hay producto, no
+    # disparamos nada.
+    if decision == "propose" and state.get("proposal_id"):
+        from app.services.image_gen import generate_creatives_for_proposal
+
+        proposal_id_for_task = state["proposal_id"]
+
+        async def _kick_off() -> None:
+            try:
+                await generate_creatives_for_proposal(proposal_id_for_task)
+            except Exception:
+                logger.exception(
+                    "background creative generation failed for proposal=%s",
+                    proposal_id_for_task,
+                )
+
+        asyncio.create_task(_kick_off())
+
     return state

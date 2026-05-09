@@ -155,7 +155,7 @@ class Proposal(Base):
     )
     reasoning: Mapped[str] = mapped_column(Text, nullable=False)
     payload: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
-    generated_assets: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    generated_assets: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

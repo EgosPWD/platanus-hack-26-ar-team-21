@@ -41,6 +41,9 @@ export default function DashboardPage() {
 
   const hasSales = summary !== null && summary.total_units > 0;
   const pendingCount = pending?.length ?? 0;
+  const generating = (pending ?? []).find((p) =>
+    p.generated_assets.some((a) => a.status === "generating"),
+  );
 
   return (
     <div className="flex flex-col gap-10">
@@ -54,6 +57,21 @@ export default function DashboardPage() {
       </div>
 
       {error && <p className="font-mono text-sm text-accent">{error}</p>}
+
+      {generating && (
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-bg px-5 py-4 text-sm text-muted-foreground">
+          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent/10">
+            <Sparkles className="h-3.5 w-3.5 animate-pulse text-accent" strokeWidth={1.8} />
+          </span>
+          <span>
+            Vera está generando fotos para tu propuesta de{" "}
+            <strong className="text-ink">
+              {generating.product?.name ?? "tu producto"}
+            </strong>
+            …
+          </span>
+        </div>
+      )}
 
       {pendingCount > 0 && (
         <Link

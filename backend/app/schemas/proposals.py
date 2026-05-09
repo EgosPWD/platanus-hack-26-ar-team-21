@@ -37,6 +37,27 @@ class ProposalPayload(BaseModel):
     )
 
 
+AssetStatus = Literal["generating", "ready", "failed"]
+
+
+class GeneratedAsset(BaseModel):
+    """Cada uno de los N creativos generados para una propuesta.
+
+    El campo `prompt_used` es deliberadamente expuesto en la API: en el demo
+    queremos poder mostrarle al juez cómo "piensa" Vera al armar la creatividad.
+    """
+
+    id: str
+    variant_index: int
+    variant_name: str
+    prompt_used: str
+    status: AssetStatus
+    url: str | None = None
+    content_type: str | None = None
+    error_message: str | None = None
+    created_at: datetime
+
+
 class ProposalRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -47,7 +68,7 @@ class ProposalRead(BaseModel):
     status: Literal["pending", "approved", "rejected", "modified"]
     reasoning: str
     payload: dict[str, Any] = Field(default_factory=dict)
-    generated_assets: dict[str, Any] = Field(default_factory=dict)
+    generated_assets: list[GeneratedAsset] = Field(default_factory=list)
     created_at: datetime
     decided_at: datetime | None = None
 

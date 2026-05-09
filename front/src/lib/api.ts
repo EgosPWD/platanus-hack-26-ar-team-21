@@ -122,6 +122,20 @@ export type ProposalPayload = {
   decision_notes?: string;
 };
 
+export type AssetStatus = "generating" | "ready" | "failed";
+
+export type GeneratedAsset = {
+  id: string;
+  variant_index: number;
+  variant_name: string;
+  prompt_used: string;
+  status: AssetStatus;
+  url: string | null;
+  content_type: string | null;
+  error_message: string | null;
+  created_at: string;
+};
+
 export type Proposal = {
   id: string;
   merchant_id: string;
@@ -130,7 +144,7 @@ export type Proposal = {
   status: ProposalStatus;
   reasoning: string;
   payload: ProposalPayload;
-  generated_assets: Record<string, unknown>;
+  generated_assets: GeneratedAsset[];
   created_at: string;
   decided_at: string | null;
   product: ProductSnapshot | null;
@@ -164,4 +178,8 @@ export const api = {
       method: "PATCH",
       body: { status, notes },
     }),
+  generateCreatives: (id: string) =>
+    apiFetch<Proposal>(`/proposals/${id}/generate`, { method: "POST" }),
+  regenerateCreatives: (id: string) =>
+    apiFetch<Proposal>(`/proposals/${id}/regenerate`, { method: "POST" }),
 };

@@ -1,5 +1,7 @@
 export type {
   AgentRunResult,
+  AssetStatus,
+  GeneratedAsset,
   Merchant,
   Product,
   ProductSnapshot,

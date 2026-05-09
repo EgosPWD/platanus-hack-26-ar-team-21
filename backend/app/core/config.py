@@ -39,10 +39,23 @@ class Settings(BaseSettings):
     META_ACCESS_TOKEN: str = ""
     META_AD_ACCOUNT_ID: str = ""
 
+    # OpenRouter (generación de imágenes con FLUX.2)
+    OPENROUTER_API_KEY: str = ""
+    OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
+    OPENROUTER_IMAGE_MODEL: str = "black-forest-labs/flux.2-klein-4b"
+
+    # Supabase Storage
+    SUPABASE_STORAGE_BUCKET: str = "vera-creatives"
+
+    # Generación de creatividades
+    CREATIVE_COUNT: int = 5
+    CREATIVE_ASPECT_RATIO: str = "1:1"
+
     # Toggles de rollback (ver CLAUDE.md §11)
     USE_SHOPIFY_MOCK: bool = False
     USE_META_MOCK: bool = False
     USE_REPLICATE_MOCK: bool = False
+    USE_OPENROUTER_MOCK: bool = False
 
     # Agente Vera — heurísticas para "valer la pena proponer"
     AGENT_MODEL: str = "claude-sonnet-4-6"
