@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import auth as auth_router
 from app.api import products as products_router
+from app.api import proposals as proposals_router
 from app.api import sales as sales_router
 from app.core.config import settings
 
@@ -84,3 +85,5 @@ async def health() -> dict[str, str | bool]:
 app.include_router(auth_router.router)
 app.include_router(products_router.router)
 app.include_router(sales_router.router)
+app.include_router(proposals_router.router)
+app.include_router(proposals_router.runs_router)

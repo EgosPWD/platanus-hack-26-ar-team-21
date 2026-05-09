@@ -1,23 +1,30 @@
 "use client";
 
-import { Sparkles, TrendingUp } from "lucide-react";
+import { ArrowRight, Sparkles, TrendingUp } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { ApiError, api, type Merchant, type SalesSummary } from "@/lib/api";
+import { ApiError, api, type Merchant, type Proposal, type SalesSummary } from "@/lib/api";
 import { formatARS } from "@/lib/format";
 
 export default function DashboardPage() {
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [summary, setSummary] = useState<SalesSummary | null>(null);
+  const [pending, setPending] = useState<Proposal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([api.me(), api.getSalesSummary(7)])
-      .then(([m, s]) => {
+    Promise.all([
+      api.me(),
+      api.getSalesSummary(7),
+      api.getProposals("pending"),
+    ])
+      .then(([m, s, p]) => {
         if (cancelled) return;
         setMerchant(m);
         setSummary(s);
+        setPending(p);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -33,6 +40,7 @@ export default function DashboardPage() {
   }, []);
 
   const hasSales = summary !== null && summary.total_units > 0;
+  const pendingCount = pending?.length ?? 0;
 
   return (
     <div className="flex flex-col gap-10">
@@ -46,6 +54,33 @@ export default function DashboardPage() {
       </div>
 
       {error && <p className="font-mono text-sm text-accent">{error}</p>}
+
+      {pendingCount > 0 && (
+        <Link
+          href="/proposals"
+          className="group flex items-center justify-between gap-4 rounded-lg border border-accent/40 bg-accent/5 p-6 transition-colors hover:bg-accent/10"
+        >
+          <div className="flex items-center gap-4">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-accent text-white">
+              <Sparkles className="h-5 w-5" strokeWidth={1.8} />
+            </span>
+            <div className="flex flex-col">
+              <span className="font-mono text-[10px] uppercase tracking-wider text-accent">
+                Vera
+              </span>
+              <span className="font-serif text-xl text-ink">
+                {pendingCount === 1
+                  ? "Tengo 1 propuesta esperando tu decisión"
+                  : `Tengo ${pendingCount} propuestas esperando tu decisión`}
+              </span>
+            </div>
+          </div>
+          <ArrowRight
+            className="h-5 w-5 text-accent transition-transform group-hover:translate-x-1"
+            strokeWidth={1.8}
+          />
+        </Link>
+      )}
 
       <section className="rounded-lg border border-border bg-white p-8">
         <div className="mb-6 flex items-center gap-2">
@@ -106,19 +141,21 @@ export default function DashboardPage() {
         )}
       </section>
 
-      <section className="flex items-start gap-4 rounded-lg border border-border bg-bg p-6">
-        <div className="mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
-          <Sparkles className="h-4 w-4" strokeWidth={1.5} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-            Vera
-          </span>
-          <p className="text-ink">
-            Estoy observando tus ventas. En breve te voy a traer mi primera propuesta.
-          </p>
-        </div>
-      </section>
+      {pendingCount === 0 && (
+        <section className="flex items-start gap-4 rounded-lg border border-border bg-bg p-6">
+          <div className="mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+            <Sparkles className="h-4 w-4" strokeWidth={1.5} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+              Vera
+            </span>
+            <p className="text-ink">
+              Estoy observando tus ventas. Pedime que analice cuando quieras una propuesta.
+            </p>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

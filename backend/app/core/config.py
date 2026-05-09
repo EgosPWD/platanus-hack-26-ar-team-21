@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     USE_META_MOCK: bool = False
     USE_REPLICATE_MOCK: bool = False
 
+    # Agente Vera — heurísticas para "valer la pena proponer"
+    AGENT_MODEL: str = "claude-sonnet-4-6"
+    AGENT_MIN_SALES_FOR_PROPOSAL: int = 3
+    AGENT_MIN_RATIO_VS_AVERAGE: float = 2.0
+    AGENT_COOLDOWN_DAYS: int = 3
+    AGENT_DEFAULT_BUDGET_ARS: int = 10000
+
     ENV: Literal["development", "staging", "production"] = "development"
 
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]

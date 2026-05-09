@@ -103,6 +103,48 @@ export type ShopifySyncResult = {
   integration_status: "ok" | "mock" | "real_failed_using_cache";
 };
 
+export type ProductSnapshot = {
+  id: string;
+  name: string;
+  price: string;
+  image_urls: string[];
+  category: string | null;
+};
+
+export type ProposalKind = "campaign" | "creative_refresh" | "budget_change";
+export type ProposalStatus = "pending" | "approved" | "rejected" | "modified";
+
+export type ProposalPayload = {
+  copy_es?: string;
+  audience_hint?: string;
+  suggested_budget_ars?: number;
+  creative_brief?: string;
+  decision_notes?: string;
+};
+
+export type Proposal = {
+  id: string;
+  merchant_id: string;
+  product_id: string | null;
+  kind: ProposalKind;
+  status: ProposalStatus;
+  reasoning: string;
+  payload: ProposalPayload;
+  generated_assets: Record<string, unknown>;
+  created_at: string;
+  decided_at: string | null;
+  product: ProductSnapshot | null;
+};
+
+export type AgentRunResult = {
+  decision: "propose" | "skip";
+  decision_reason: string;
+  proposal: Proposal | null;
+  reasoning_trace: string[];
+  agent_run_id: string | null;
+  error: string | null;
+};
+
 export const api = {
   me: () => apiFetch<Merchant>("/me"),
   getProducts: () => apiFetch<Product[]>("/products"),
@@ -110,4 +152,16 @@ export const api = {
     apiFetch<SalesSummary>(`/sales/summary?days=${days}`),
   syncShopify: () =>
     apiFetch<ShopifySyncResult>("/products/sync", { method: "POST" }),
+
+  runAgent: () => apiFetch<AgentRunResult>("/proposals/run", { method: "POST" }),
+  getProposals: (status?: ProposalStatus) =>
+    apiFetch<Proposal[]>(
+      `/proposals${status ? `?status=${status}` : ""}`,
+    ),
+  getProposal: (id: string) => apiFetch<Proposal>(`/proposals/${id}`),
+  decideProposal: (id: string, status: "approved" | "rejected" | "modified", notes?: string) =>
+    apiFetch<Proposal>(`/proposals/${id}`, {
+      method: "PATCH",
+      body: { status, notes },
+    }),
 };
