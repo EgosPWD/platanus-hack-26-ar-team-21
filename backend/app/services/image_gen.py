@@ -1,8 +1,18 @@
 """Genera las creatividades de una propuesta usando OpenRouter (FLUX.2) o el mock.
 
-Concurrencia: hasta 2 generaciones simultáneas (semáforo) para no inflar la
-factura de OpenRouter por accidente. Cada asset se persiste cuando termina,
-así la UI puede hacer polling y ver progreso parcial.
+Está separado en dos pasos para que la UI pueda mostrar los placeholders en
+estado `generating` apenas el endpoint responde:
+
+- `init_assets_for_proposal` — sincrónico, persiste los N placeholders.
+- `run_creative_generation` — corre las llamadas a OpenRouter, va actualizando
+  cada asset a `ready`/`failed` y persiste tras cada resultado.
+
+Concurrencia: hasta 2 llamadas simultáneas (semáforo) para no inflar la
+factura de OpenRouter por accidente.
+
+Image-to-image: si el producto tiene `image_urls`, le pasamos la primera
+URL al cliente como referencia visual. Eso hace que FLUX trabaje sobre la
+prenda real en vez de inventar una nueva.
 """
 from __future__ import annotations
 
@@ -14,7 +24,6 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -49,9 +58,10 @@ def _make_client() -> OpenRouterImageClient:
 
 
 def _build_initial_assets(product: Product, creative_brief: str) -> list[dict[str, Any]]:
+    has_reference = bool(product.image_urls)
     assets: list[dict[str, Any]] = []
     for i, name in enumerate(VARIANT_NAMES[: settings.CREATIVE_COUNT]):
-        prompt = build_flux_prompt(product, creative_brief, i)
+        prompt = build_flux_prompt(product, creative_brief, i, has_reference=has_reference)
         assets.append(
             {
                 "id": str(uuid.uuid4()),
@@ -68,8 +78,7 @@ def _build_initial_assets(product: Product, creative_brief: str) -> list[dict[st
     return assets
 
 
-async def _persist_assets(proposal_id: UUID, assets: list[dict[str, Any]]) -> None:
-    """Snapshot del array de assets sobre la proposal — usa una sesión nueva."""
+async def _persist_assets_snapshot(proposal_id: UUID, assets: list[dict[str, Any]]) -> None:
     async with async_session_factory() as session:
         proposal = await session.get(Proposal, proposal_id)
         if proposal is None:
@@ -79,41 +88,69 @@ async def _persist_assets(proposal_id: UUID, assets: list[dict[str, Any]]) -> No
         await session.commit()
 
 
-async def generate_creatives_for_proposal(proposal_id: UUID) -> list[dict[str, Any]]:
-    """Lee la proposal, genera N creativos, los sube a Storage, persiste el array.
+async def init_assets_for_proposal(proposal_id: UUID) -> list[dict[str, Any]] | None:
+    """Persiste 5 placeholders en estado `generating`. Idempotente — no rompe si
+    ya hay assets, los reemplaza. Devuelve la lista o None si no hay producto.
 
-    Esta función abre y cierra sus propias sesiones — está diseñada para correr
-    en background (asyncio.create_task) sin compartir sesión con el request HTTP.
+    Es rápido (~100ms): un fetch + un commit. Diseñado para correr SYNC dentro
+    del request handler así el response al frontend ya trae los placeholders.
     """
-    started = time.perf_counter()
-
-    # Bootstrap: lee proposal + product en una sesión chica.
     async with async_session_factory() as session:
         proposal = await session.get(Proposal, proposal_id)
-        if proposal is None:
-            logger.warning("generate_creatives | proposal %s no existe", proposal_id)
-            return []
-        if proposal.product_id is None:
-            logger.warning("generate_creatives | proposal %s sin product_id", proposal_id)
-            return []
+        if proposal is None or proposal.product_id is None:
+            logger.warning("init_assets | proposal o product no existe (%s)", proposal_id)
+            return None
         product = await session.get(Product, proposal.product_id)
         if product is None:
-            logger.warning("generate_creatives | product %s no existe", proposal.product_id)
-            return []
-        merchant_id = proposal.merchant_id
+            logger.warning("init_assets | product %s no existe", proposal.product_id)
+            return None
         creative_brief = (proposal.payload or {}).get("creative_brief", "")
-        # Inicializamos los N assets en estado generating y persistimos.
         assets = _build_initial_assets(product, creative_brief)
         proposal.generated_assets = list(assets)
         flag_modified(proposal, "generated_assets")
         await session.commit()
+    logger.info(
+        "init_assets | proposal=%s count=%d has_reference=%s",
+        proposal_id,
+        len(assets),
+        bool(product.image_urls),
+    )
+    return assets
+
+
+async def run_creative_generation(proposal_id: UUID) -> list[dict[str, Any]]:
+    """Corre las llamadas a OpenRouter para una proposal que YA tiene assets
+    en `generating`. Va actualizando cada uno y persistiendo después de cada
+    resultado (con lock). Pensado para `asyncio.create_task` en background.
+    """
+    started = time.perf_counter()
+
+    async with async_session_factory() as session:
+        proposal = await session.get(Proposal, proposal_id)
+        if proposal is None or proposal.product_id is None:
+            return []
+        product = await session.get(Product, proposal.product_id)
+        if product is None:
+            return []
+        merchant_id = proposal.merchant_id
+        # Trabajamos sobre una copia local; los placeholders ya fueron persistidos
+        # por `init_assets_for_proposal`.
+        assets = [dict(a) for a in (proposal.generated_assets or [])]
+        reference_image_url: str | None = (
+            product.image_urls[0] if product.image_urls else None
+        )
+
+    if not assets:
+        logger.warning("run_creative_generation | no hay assets para %s", proposal_id)
+        return []
 
     logger.info(
-        "generate_creatives | merchant=%s proposal=%s mock=%s count=%d",
+        "run_creative_generation | merchant=%s proposal=%s mock=%s count=%d ref=%s",
         merchant_id,
         proposal_id,
         settings.USE_OPENROUTER_MOCK,
         len(assets),
+        "yes" if reference_image_url else "no",
     )
 
     sem = asyncio.Semaphore(_MAX_CONCURRENT)
@@ -121,7 +158,7 @@ async def generate_creatives_for_proposal(proposal_id: UUID) -> list[dict[str, A
 
     async def _persist() -> None:
         async with persist_lock:
-            await _persist_assets(proposal_id, assets)
+            await _persist_assets_snapshot(proposal_id, assets)
 
     async def _one(asset: dict[str, Any], client: OpenRouterImageClient) -> None:
         idx = asset["variant_index"]
@@ -130,10 +167,11 @@ async def generate_creatives_for_proposal(proposal_id: UUID) -> list[dict[str, A
             try:
                 result = await client.generate_image(
                     asset["prompt_used"],
+                    reference_image_url=reference_image_url,
                     aspect_ratio=settings.CREATIVE_ASPECT_RATIO,
                 )
-                ext = "png"
                 content_type = "image/png"
+                ext = "png"
                 dest_path = (
                     f"{merchant_id}/{proposal_id}/variant_{idx}_{asset['id'][:8]}.{ext}"
                 )
@@ -177,11 +215,24 @@ async def generate_creatives_for_proposal(proposal_id: UUID) -> list[dict[str, A
         await asyncio.gather(*[_one(a, client) for a in assets])
 
     logger.info(
-        "generate_creatives done | proposal=%s total=%.2fs",
+        "run_creative_generation done | proposal=%s total=%.2fs",
         proposal_id,
         time.perf_counter() - started,
     )
     return assets
+
+
+async def generate_creatives_for_proposal(proposal_id: UUID) -> list[dict[str, Any]]:
+    """Conveniencia: init + run en una sola corrida. Útil para casos donde
+    no necesitás separar el init del run (ej: scripts manuales).
+
+    El flujo HTTP debería usar `init_assets_for_proposal` (sync) +
+    `run_creative_generation` (background) por separado.
+    """
+    initialized = await init_assets_for_proposal(proposal_id)
+    if initialized is None:
+        return []
+    return await run_creative_generation(proposal_id)
 
 
 async def clear_assets(proposal_id: UUID) -> None:

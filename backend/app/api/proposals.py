@@ -16,7 +16,11 @@ from app.schemas.proposals import (
     ProposalDecision,
     ProposalRead,
 )
-from app.services.image_gen import clear_assets, generate_creatives_for_proposal
+from app.services.image_gen import (
+    clear_assets,
+    init_assets_for_proposal,
+    run_creative_generation,
+)
 
 logger = logging.getLogger("vera.api.proposals")
 router = APIRouter(prefix="/proposals", tags=["proposals"])
@@ -184,9 +188,10 @@ async def generate_creatives(
             detail="Ya hay creatividades generadas. Usá /regenerate para reemplazarlas.",
         )
 
-    asyncio.create_task(generate_creatives_for_proposal(proposal_id))
-    # La proposal todavía no tiene los assets en generating — los crea el task.
-    # Devolvemos lo que hay ahora (vacío) para que el front empiece a hacer polling.
+    # Sync: persiste 5 placeholders en estado generating para que el front
+    # vea el grid inmediatamente y empiece a hacer polling.
+    await init_assets_for_proposal(proposal_id)
+    asyncio.create_task(run_creative_generation(proposal_id))
     await db.refresh(proposal)
     return _serialize_proposal(proposal, product)
 
@@ -207,7 +212,8 @@ async def regenerate_creatives(
         raise HTTPException(status_code=404, detail="Propuesta no encontrada")
 
     await clear_assets(proposal_id)
-    asyncio.create_task(generate_creatives_for_proposal(proposal_id))
+    await init_assets_for_proposal(proposal_id)
+    asyncio.create_task(run_creative_generation(proposal_id))
     await db.refresh(proposal)
     return _serialize_proposal(proposal, product)
 

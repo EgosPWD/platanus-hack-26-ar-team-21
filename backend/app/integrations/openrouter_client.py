@@ -1,13 +1,16 @@
 """Cliente real de OpenRouter para generación de imágenes con FLUX.2.
 
-Usa el endpoint /chat/completions con `modalities: ["image", "text"]`. La
-respuesta llega bajo `choices[0].message.images[0].image_url.url`, que puede
-ser:
+Usa el endpoint /chat/completions con `modalities: ["image"]`. La respuesta
+llega bajo `choices[0].message.images[0].image_url.url`, que puede ser:
 - una URL pública absoluta (`https://...`)
 - un data URL base64 (`data:image/png;base64,...`)
 
 `generate_image` devuelve `str` (URL) o `bytes` (decodeado del base64) y deja
 que el caller decida cómo subirlo a Storage.
+
+Image-to-image: si pasás `reference_image_url`, se manda como input multimodal
+junto con el prompt. Si el modelo no soporta input multimodal, hace fallback
+automático a text-only para no romper la corrida.
 """
 from __future__ import annotations
 
@@ -25,6 +28,20 @@ _OR_TITLE = "Vera"
 
 class ImageGenerationError(Exception):
     """OpenRouter o FLUX devolvieron un error que impide producir la imagen."""
+
+
+def _looks_like_unsupported_modality(message: str) -> bool:
+    m = message.lower()
+    return any(
+        k in m
+        for k in (
+            "no endpoints found",
+            "not support",
+            "modalit",
+            "unsupported input",
+            "image input",
+        )
+    )
 
 
 class OpenRouterImageClient:
@@ -73,14 +90,52 @@ class OpenRouterImageClient:
     async def generate_image(
         self,
         prompt: str,
+        reference_image_url: str | None = None,
         aspect_ratio: str = "1:1",
     ) -> str | bytes:
-        body: dict[str, Any] = {
+        """Genera una imagen — image-to-image si hay reference, text-to-image si no.
+
+        Si el modelo no soporta input multimodal, cae automáticamente a text-only
+        en la misma llamada. El caller no se entera salvo por el log.
+        """
+        del aspect_ratio  # placeholder por contrato
+
+        if reference_image_url:
+            multimodal_body = self._build_body(prompt, reference_image_url)
+            try:
+                return await self._post_and_parse(multimodal_body)
+            except ImageGenerationError as exc:
+                if _looks_like_unsupported_modality(str(exc)):
+                    logger.warning(
+                        "img2img no soportado por %s, fallback a text-only: %s",
+                        self.model_id,
+                        exc,
+                    )
+                else:
+                    raise
+
+        text_only_body = self._build_body(prompt, None)
+        return await self._post_and_parse(text_only_body)
+
+    # --- internals -------------------------------------------------------
+
+    def _build_body(
+        self, prompt: str, reference_image_url: str | None
+    ) -> dict[str, Any]:
+        if reference_image_url:
+            content: Any = [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": reference_image_url}},
+            ]
+        else:
+            content = prompt
+        return {
             "model": self.model_id,
-            "messages": [{"role": "user", "content": prompt}],
-            "modalities": ["image", "text"],
+            "messages": [{"role": "user", "content": content}],
+            "modalities": ["image"],
         }
 
+    async def _post_and_parse(self, body: dict[str, Any]) -> str | bytes:
         try:
             response = await self._client.post("/chat/completions", json=body)
         except httpx.HTTPError as exc:

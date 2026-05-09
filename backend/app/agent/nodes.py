@@ -447,24 +447,34 @@ async def persist_proposal(state: VeraState, db: AsyncSession) -> VeraState:
         time.perf_counter() - started,
     )
 
-    # Kick-off de generación de creatividades en background. La task tiene su
-    # propia AsyncSession (ver image_gen.async_session_factory) — no comparte la
-    # sesión del request. Si el agente decidió `skip` o no hay producto, no
-    # disparamos nada.
+    # Kick-off de creatividades. Hacemos init SYNC para que la respuesta del
+    # agente al frontend ya traiga los 5 placeholders en estado `generating` —
+    # eso arranca el polling del front sin tener que recargar la página. La
+    # generación pesada va en background con su propia AsyncSession.
     if decision == "propose" and state.get("proposal_id"):
-        from app.services.image_gen import generate_creatives_for_proposal
+        from app.services.image_gen import (
+            init_assets_for_proposal,
+            run_creative_generation,
+        )
 
         proposal_id_for_task = state["proposal_id"]
+        try:
+            await init_assets_for_proposal(proposal_id_for_task)
+        except Exception:
+            logger.exception(
+                "init_assets failed for proposal=%s",
+                proposal_id_for_task,
+            )
+        else:
+            async def _kick_off() -> None:
+                try:
+                    await run_creative_generation(proposal_id_for_task)
+                except Exception:
+                    logger.exception(
+                        "background creative generation failed for proposal=%s",
+                        proposal_id_for_task,
+                    )
 
-        async def _kick_off() -> None:
-            try:
-                await generate_creatives_for_proposal(proposal_id_for_task)
-            except Exception:
-                logger.exception(
-                    "background creative generation failed for proposal=%s",
-                    proposal_id_for_task,
-                )
-
-        asyncio.create_task(_kick_off())
+            asyncio.create_task(_kick_off())
 
     return state

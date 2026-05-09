@@ -116,8 +116,15 @@ class OpenRouterImageClient:
     async def generate_image(
         self,
         prompt: str,
+        reference_image_url: str | None = None,
         aspect_ratio: str = "1:1",
     ) -> str | bytes:
+        del aspect_ratio
+        # Si llega una referencia, devolvemos esa misma URL para imitar el
+        # comportamiento ideal del image-to-image (el "mismo producto" sale).
+        if reference_image_url:
+            logger.info("openrouter_mock | echoing reference image")
+            return reference_image_url
         category = _category_for(prompt)
         choices = _BY_CATEGORY.get(category) or _BY_CATEGORY["generic"]
         url = random.choice(choices)
