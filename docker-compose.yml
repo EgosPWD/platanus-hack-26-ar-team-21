@@ -23,7 +23,7 @@ x-backend-env: &backend-env
   EVOLUTION_INSTANCE_NAME: ${EVOLUTION_INSTANCE_NAME:-Vera}
   EVOLUTION_FROM_NUMBER: ${EVOLUTION_FROM_NUMBER:-}
   FRONTEND_BASE_URL: "${FRONTEND_BASE_URL:-http://localhost:3000}"
-  CORS_ORIGINS: '${CORS_ORIGINS:-["http://localhost:3000"]}'
+  CORS_ORIGINS: '${CORS_ORIGINS:-["http://localhost:3000","https://verenice.online"]}'
   CREATIVE_COUNT: ${CREATIVE_COUNT:-5}
   CREATIVE_ASPECT_RATIO: "${CREATIVE_ASPECT_RATIO:-1:1}"
   AGENT_MODEL: ${AGENT_MODEL:-claude-sonnet-4-6}
