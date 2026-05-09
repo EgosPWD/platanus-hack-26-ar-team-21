@@ -50,6 +50,14 @@ class Settings(BaseSettings):
     # esta flag adicional es defensa en profundidad.
     META_CAMPAIGNS_ALWAYS_PAUSED: bool = True
 
+    # Si tu Meta App está en Development Mode (verificación de BM pendiente),
+    # Marketing API rechaza create_ad_creative con subcode 1885183 — pero
+    # campaign, ad_set y AdImage upload SÍ funcionan. Con este flag, el
+    # publisher salta los pasos que requieren Live y deja la campaña con
+    # targeting + budget visible en Ads Manager. Los ads quedan "preparados"
+    # para cuando la app pase a Live.
+    META_SKIP_AD_CREATION_IF_DEV_MODE: bool = False
+
     # OpenRouter (generación de imágenes con FLUX.2)
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"

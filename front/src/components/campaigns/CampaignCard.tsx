@@ -164,6 +164,20 @@ export function CampaignCard({
             </div>
           )}
 
+          {(() => {
+            const meta = (local.payload_snapshot?.meta ?? {}) as {
+              ads_pending_reason?: string | null;
+            };
+            return meta.ads_pending_reason ? (
+              <div className="rounded-md border border-amber-600/30 bg-amber-50 p-3 text-sm text-amber-900">
+                <div className="font-mono text-[10px] uppercase tracking-wider">
+                  Ads pendientes
+                </div>
+                <p className="mt-1 break-words">{meta.ads_pending_reason}</p>
+              </div>
+            ) : null;
+          })()}
+
           {local.status === "creating" && (
             <div className="flex items-center gap-2 rounded-md border border-amber-600/30 bg-amber-50 p-3 text-sm text-amber-900">
               <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.8} />

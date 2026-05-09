@@ -20,6 +20,9 @@ from app.integrations.meta_ads_client import MetaAdsError
 from app.publishers.base import Publisher, PublisherResult
 from app.services.targeting import build_meta_targeting
 
+# Subcode de Meta que dispara el degraded mode: app en Development.
+_DEV_MODE_SUBCODE = 1885183
+
 logger = logging.getLogger("vera.publisher.meta")
 
 
@@ -220,6 +223,7 @@ class MetaPublisher(Publisher):
 
         # 3) Por cada creatividad ready: AdCreative + Ad
         ads: list[dict[str, Any]] = []
+        ads_pending_reason: str | None = None
         for asset in assets:
             variant_name = asset.get("variant_name") or "creative"
             logger.info(
@@ -227,14 +231,40 @@ class MetaPublisher(Publisher):
                 variant_name,
                 asset["url"],
             )
-            creative_resp = await self.client.create_creative_from_image_url(
-                name=f"{campaign_name} — {variant_name}",
-                image_url=asset["url"],
-                message=copy_es,
-                link=landing_url,
-                call_to_action="SHOP_NOW",
-                page_id=settings.META_PAGE_ID or None,
-            )
+            try:
+                creative_resp = await self.client.create_creative_from_image_url(
+                    name=f"{campaign_name} — {variant_name}",
+                    image_url=asset["url"],
+                    message=copy_es,
+                    link=landing_url,
+                    call_to_action="SHOP_NOW",
+                    page_id=settings.META_PAGE_ID or None,
+                )
+            except MetaAdsError as exc:
+                # Si la app está en Development y el config lo permite,
+                # marcamos los ads como "pendientes Live mode" y cerramos
+                # con éxito parcial — la campaña + ad_set ya existen en
+                # Meta y son demoables.
+                is_dev_mode = (
+                    exc.code == 100
+                    and (exc.raw or {}).get("subcode") == _DEV_MODE_SUBCODE
+                )
+                if is_dev_mode and settings.META_SKIP_AD_CREATION_IF_DEV_MODE:
+                    ads_pending_reason = (
+                        "Tu app de Meta está en Development. La campaña con "
+                        "su targeting y presupuesto ya está creada en Ads "
+                        "Manager. Los 5 ads se publican cuando tu Business "
+                        "pase verificación y la app vaya a Live."
+                    )
+                    logger.warning(
+                        "publisher | dev mode — skipping creatives/ads. "
+                        "Campaign %s + ad_set %s exist in Meta.",
+                        cid,
+                        adset_id,
+                    )
+                    break
+                raise
+
             logger.info(
                 "publisher | step=create_ad creative_id=%s variant=%s",
                 creative_resp["id"],
@@ -258,6 +288,7 @@ class MetaPublisher(Publisher):
             "campaign": campaign_resp,
             "adset": adset_resp,
             "ads": ads,
+            "ads_pending_reason": ads_pending_reason,
         }
 
     async def _mark_failed(

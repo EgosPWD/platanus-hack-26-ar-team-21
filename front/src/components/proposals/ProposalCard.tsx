@@ -584,6 +584,35 @@ function CampaignMiniCard({
   }
 
   // created / active / paused / finished — todos llevaron a Meta exitoso.
+  // Caso especial: si la app está en Development mode, la campaña existe
+  // (con targeting y budget) pero los ads quedaron pendientes de Live.
+  const meta = (campaign.payload_snapshot?.meta ?? {}) as {
+    ads_pending_reason?: string | null;
+  };
+  const adsPending = meta.ads_pending_reason;
+
+  if (adsPending) {
+    return (
+      <a
+        href={campaign.external_url ?? "#"}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex flex-col gap-2 rounded-md border border-amber-600/30 bg-amber-50 p-3 text-amber-900 transition-colors hover:bg-amber-100"
+      >
+        <div className="flex items-start gap-2">
+          <Check className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2.5} />
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="font-mono text-[10px] uppercase tracking-wider">
+              Campaña creada · ads pendientes
+            </span>
+            <span className="break-words text-sm">{adsPending}</span>
+          </div>
+          <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.8} />
+        </div>
+      </a>
+    );
+  }
+
   return (
     <a
       href={campaign.external_url ?? "#"}
