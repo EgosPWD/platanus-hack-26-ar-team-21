@@ -68,7 +68,9 @@ export default function SettingsPage() {
         <span className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">
           Configuración
         </span>
-        <h1 className="font-serif text-5xl leading-tight text-ink">Tu negocio</h1>
+        <h1 className="font-serif text-3xl leading-tight text-ink sm:text-4xl md:text-5xl">
+          Tu negocio
+        </h1>
       </div>
 
       {merchant === null ? (
@@ -76,7 +78,7 @@ export default function SettingsPage() {
       ) : (
         <form
           onSubmit={submit}
-          className="flex max-w-xl flex-col gap-6 rounded-lg border border-border bg-white p-8"
+          className="flex max-w-xl flex-col gap-6 rounded-lg border border-border bg-white p-5 sm:p-8"
         >
           <div className="flex flex-col gap-2">
             <Label htmlFor="name">Nombre del negocio</Label>

@@ -131,7 +131,7 @@ export function ProposalCard({
   return (
     <article className="overflow-hidden rounded-lg border border-border bg-white">
       <div className="grid md:grid-cols-[220px_1fr]">
-        <div className="aspect-square w-full bg-bg md:aspect-auto md:h-full">
+        <div className="aspect-[4/3] w-full bg-bg sm:aspect-square md:aspect-auto md:h-full">
           {productImage ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={productImage} alt={local.product?.name ?? ""} className="h-full w-full object-cover" />
@@ -142,13 +142,13 @@ export function ProposalCard({
           )}
         </div>
 
-        <div className="flex flex-col gap-5 p-6">
-          <header className="flex items-start justify-between gap-4">
-            <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-5 p-4 sm:p-6">
+          <header className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 flex-col gap-1">
               <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                 Propuesta · {local.kind}
               </span>
-              <h3 className="font-serif text-2xl text-ink">
+              <h3 className="break-words font-serif text-xl text-ink sm:text-2xl">
                 {local.product?.name ?? "Sin producto"}
               </h3>
             </div>
@@ -162,7 +162,7 @@ export function ProposalCard({
             </span>
           </header>
 
-          <div className="rounded-lg border border-border bg-bg p-5">
+          <div className="rounded-lg border border-border bg-bg p-4 sm:p-5">
             <div className="mb-3 flex items-center gap-2">
               <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent/10 text-accent">
                 <Sparkles className="h-3.5 w-3.5" strokeWidth={1.8} />
@@ -171,7 +171,7 @@ export function ProposalCard({
                 Vera
               </span>
             </div>
-            <p className="font-serif text-lg leading-relaxed text-ink">
+            <p className="font-serif text-base leading-relaxed text-ink sm:text-lg">
               &ldquo;{local.reasoning}&rdquo;
             </p>
           </div>
@@ -226,7 +226,7 @@ export function ProposalCard({
                   Regenerar variantes
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
                 {assets
                   .slice()
                   .sort((a, b) => a.variant_index - b.variant_index)
@@ -247,8 +247,12 @@ export function ProposalCard({
           )}
 
           {(local.status === "pending" || local.status === "modified") && (
-            <footer className="flex flex-wrap items-center gap-3 pt-2">
-              <Button onClick={() => decide("approved")} disabled={busy !== null}>
+            <footer className="flex flex-col gap-3 pt-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <Button
+                onClick={() => decide("approved")}
+                disabled={busy !== null}
+                className="w-full sm:w-auto"
+              >
                 <Check className="mr-2 h-4 w-4" strokeWidth={2} />
                 {busy === "approved" ? "Aprobando…" : "Aprobar"}
               </Button>
@@ -256,6 +260,7 @@ export function ProposalCard({
                 variant="outline"
                 onClick={() => decide("rejected")}
                 disabled={busy !== null}
+                className="w-full sm:w-auto"
               >
                 <X className="mr-2 h-4 w-4" strokeWidth={2} />
                 {busy === "rejected" ? "Rechazando…" : "Rechazar"}
@@ -264,7 +269,7 @@ export function ProposalCard({
                 type="button"
                 onClick={() => setShowModify(true)}
                 disabled={busy !== null}
-                className="ml-1 inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-ink disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-1.5 py-2 font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-ink disabled:opacity-50 sm:ml-1 sm:py-0"
               >
                 <Pencil className="h-3 w-3" strokeWidth={1.8} />
                 Modificar
@@ -371,11 +376,11 @@ function AssetModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/80 p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/80 p-3 sm:p-6"
       onClick={onClose}
     >
       <div
-        className="grid max-h-[90vh] w-full max-w-5xl gap-6 overflow-auto rounded-lg bg-white p-6 md:grid-cols-[1fr_320px]"
+        className="grid max-h-[95vh] w-full max-w-5xl gap-4 overflow-auto rounded-lg bg-white p-4 sm:gap-6 sm:p-6 md:grid-cols-[1fr_320px]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-center bg-bg">

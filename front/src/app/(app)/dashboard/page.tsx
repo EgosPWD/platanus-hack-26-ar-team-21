@@ -46,12 +46,12 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className="flex flex-col gap-10">
+    <div className="flex flex-col gap-8 sm:gap-10">
       <div className="flex flex-col gap-3">
         <span className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">
           Dashboard
         </span>
-        <h1 className="font-serif text-5xl leading-tight text-ink">
+        <h1 className="font-serif text-3xl leading-tight text-ink sm:text-4xl md:text-5xl">
           {merchant ? `Hola, ${merchant.business_name}` : "Hola"}
         </h1>
       </div>
@@ -100,7 +100,7 @@ export default function DashboardPage() {
         </Link>
       )}
 
-      <section className="rounded-lg border border-border bg-white p-8">
+      <section className="rounded-lg border border-border bg-white p-5 sm:p-8">
         <div className="mb-6 flex items-center gap-2">
           <TrendingUp className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
           <span className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">
@@ -115,12 +115,12 @@ export default function DashboardPage() {
             Todavía no hay ventas registradas. Sincronizá con Shopify desde Productos.
           </p>
         ) : (
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 sm:gap-8 md:grid-cols-3">
             <div className="flex flex-col gap-1">
               <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                 Facturado
               </span>
-              <span className="font-serif text-4xl text-ink">
+              <span className="font-serif text-3xl text-ink sm:text-4xl">
                 {formatARS(summary.total_revenue)}
               </span>
             </div>
@@ -128,7 +128,7 @@ export default function DashboardPage() {
               <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                 Prendas vendidas
               </span>
-              <span className="font-serif text-4xl text-ink">
+              <span className="font-serif text-3xl text-ink sm:text-4xl">
                 {summary.total_units}
               </span>
             </div>

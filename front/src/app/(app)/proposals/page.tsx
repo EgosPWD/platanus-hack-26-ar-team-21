@@ -114,37 +114,37 @@ export default function ProposalsPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end md:justify-between">
         <div className="flex flex-col gap-2">
           <span className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">
             Propuestas
           </span>
-          <h1 className="font-serif text-5xl leading-tight text-ink">
+          <h1 className="font-serif text-3xl leading-tight text-ink sm:text-4xl md:text-5xl">
             Propuestas de Vera
           </h1>
         </div>
-        <Button onClick={handleRun} disabled={running}>
+        <Button onClick={handleRun} disabled={running} className="w-full md:w-auto">
           {running ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Vera está analizando tus ventas…
+              <span className="truncate">Vera está analizando…</span>
             </>
           ) : (
             <>
-              <Sparkles className="mr-2 h-4 w-4" strokeWidth={1.8} />
-              Pedirle a Vera que analice ahora
+              <Sparkles className="mr-2 h-4 w-4 shrink-0" strokeWidth={1.8} />
+              <span className="truncate">Pedirle a Vera que analice ahora</span>
             </>
           )}
         </Button>
       </div>
 
-      <nav className="flex flex-wrap gap-1 border-b border-border">
+      <nav className="-mx-4 flex gap-1 overflow-x-auto border-b border-border px-4 sm:mx-0 sm:flex-wrap sm:px-0">
         {TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className={cn(
-              "-mb-px border-b-2 px-4 py-2 font-mono text-xs uppercase tracking-wider transition-colors",
+              "-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2 font-mono text-xs uppercase tracking-wider transition-colors sm:px-4",
               tab === t.key
                 ? "border-accent text-ink"
                 : "border-transparent text-muted-foreground hover:text-ink",
@@ -188,8 +188,8 @@ export default function ProposalsPage() {
               <Sparkles className="h-3.5 w-3.5" strokeWidth={2} />
             )}
           </span>
-          <div className="flex-1">
-            <p className="font-serif text-base leading-snug">
+          <div className="min-w-0 flex-1">
+            <p className="break-words font-serif text-sm leading-snug sm:text-base">
               {decisionFeedback.kind === "approved" &&
                 `Aprobaste la propuesta para "${decisionFeedback.productName}". Ya pasó a Aprobadas y te avisé por WhatsApp.`}
               {decisionFeedback.kind === "rejected" &&

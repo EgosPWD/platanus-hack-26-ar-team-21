@@ -51,7 +51,7 @@ export default function ProposalDetailPage() {
         <span className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">
           Propuesta de Vera
         </span>
-        <h1 className="font-serif text-5xl leading-tight text-ink">
+        <h1 className="break-words font-serif text-3xl leading-tight text-ink sm:text-4xl md:text-5xl">
           {proposal?.product?.name ?? "Detalle"}
         </h1>
       </div>

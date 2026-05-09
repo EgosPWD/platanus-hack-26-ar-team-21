@@ -67,20 +67,27 @@ export default function ProductsPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end md:justify-between">
         <div className="flex flex-col gap-2">
           <span className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">
             Productos
           </span>
-          <h1 className="font-serif text-5xl leading-tight text-ink">Tu catálogo</h1>
+          <h1 className="font-serif text-3xl leading-tight text-ink sm:text-4xl md:text-5xl">
+            Tu catálogo
+          </h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
           {syncMessage && (
             <span className="font-mono text-xs text-muted-foreground">
               {syncMessage}
             </span>
           )}
-          <Button onClick={handleSync} disabled={syncing} variant="outline">
+          <Button
+            onClick={handleSync}
+            disabled={syncing}
+            variant="outline"
+            className="w-full sm:w-auto"
+          >
             {syncing ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
