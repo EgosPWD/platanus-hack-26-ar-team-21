@@ -167,6 +167,12 @@ class Proposal(Base):
 
 
 class CampaignStatus(str, enum.Enum):
+    """Lifecycle de una campaña — ver schemas/campaigns.py para detalles."""
+
+    pending = "pending"
+    creating = "creating"
+    created = "created"
+    failed = "failed"
     active = "active"
     paused = "paused"
     finished = "finished"
@@ -185,23 +191,38 @@ class Campaign(Base):
     )
     proposal_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("proposals.id", ondelete="CASCADE"),
+        index=True,
         nullable=False,
     )
     publisher: Mapped[str] = mapped_column(String(32), nullable=False)
+    kind: Mapped[str] = mapped_column(
+        String(32), default="meta_ads", nullable=False
+    )
     external_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    external_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[CampaignStatus] = mapped_column(
         SQLEnum(CampaignStatus, name="campaign_status", native_enum=True),
-        default=CampaignStatus.active,
+        default=CampaignStatus.creating,
         nullable=False,
     )
+    creative_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    budget_ars: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    payload_snapshot: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
     metrics: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
-    started_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
     ended_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+    last_synced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
     )
 
 

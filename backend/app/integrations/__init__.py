@@ -13,7 +13,10 @@ else:
 if settings.USE_META_MOCK:
     from app.integrations.meta_ads_mock import MetaAdsClient
 else:
-    from app.integrations.meta_ads import MetaAdsClient
+    # Capa 6: cliente con surface completo (campaign/adset/creative/ad).
+    # El meta_ads.py viejo (solo ping, Capa 2) queda como dead code para no
+    # romper imports históricos pero ya nadie debería usarlo.
+    from app.integrations.meta_ads_client import MetaAdsClient
 
 if settings.USE_OPENROUTER_MOCK:
     from app.integrations.openrouter_mock import OpenRouterImageClient

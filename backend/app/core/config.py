@@ -33,11 +33,19 @@ class Settings(BaseSettings):
     SHOPIFY_SHOP_DOMAIN: str = ""
     SHOPIFY_ADMIN_TOKEN: str = ""
 
-    # Meta Ads (development mode)
+    # Meta Ads (development mode / sandbox)
     META_APP_ID: str = ""
     META_APP_SECRET: str = ""
     META_ACCESS_TOKEN: str = ""
     META_AD_ACCOUNT_ID: str = ""
+    META_API_VERSION: str = "v21.0"
+    META_DEFAULT_COUNTRY: str = "AR"
+    META_DEFAULT_AGE_MIN: int = 18
+    META_DEFAULT_AGE_MAX: int = 65
+    # Hard switch: si es False NO publicar. Esto NO se cambia sin auditoría.
+    # Toda creación de campaign/adset/ad pasa status="PAUSED" sí o sí —
+    # esta flag adicional es defensa en profundidad.
+    META_CAMPAIGNS_ALWAYS_PAUSED: bool = True
 
     # OpenRouter (generación de imágenes con FLUX.2)
     OPENROUTER_API_KEY: str = ""

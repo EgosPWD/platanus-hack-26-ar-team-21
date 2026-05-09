@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutDashboard, LogOut, Menu, Package, Settings, Sparkles, X } from "lucide-react";
+import { LayoutDashboard, LogOut, Megaphone, Menu, Package, Settings, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -12,6 +12,7 @@ import { getBrowserSupabase } from "@/lib/supabase";
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/proposals", label: "Propuestas", icon: Sparkles },
+  { href: "/campaigns", label: "Campañas", icon: Megaphone },
   { href: "/products", label: "Productos", icon: Package },
   { href: "/settings", label: "Configuración", icon: Settings },
 ] as const;

@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import auth as auth_router
+from app.api import campaigns as campaigns_router
 from app.api import products as products_router
 from app.api import proposals as proposals_router
 from app.api import sales as sales_router
@@ -34,9 +35,20 @@ async def lifespan(_: FastAPI):
             meta_client = MetaAdsClient(
                 access_token=settings.META_ACCESS_TOKEN,
                 ad_account_id=settings.META_AD_ACCOUNT_ID,
+                api_version=settings.META_API_VERSION,
             )
-        ok = await meta_client.ping()
-        logger.info("Meta ping: %s", "ok" if ok else "FAILED")
+        result = await meta_client.ping()
+        if isinstance(result, dict):
+            connected = result.get("connected", False)
+            detail = result.get("name") or result.get("error") or ""
+        else:
+            connected = bool(result)
+            detail = ""
+        logger.info(
+            "Meta ping: %s%s",
+            "ok" if connected else "FAILED",
+            f" ({detail})" if detail else "",
+        )
     except Exception:
         logger.exception("Meta client could not be instantiated")
 
@@ -88,3 +100,5 @@ app.include_router(sales_router.router)
 app.include_router(proposals_router.router)
 app.include_router(proposals_router.runs_router)
 app.include_router(proposals_router.notifications_router)
+app.include_router(campaigns_router.router)
+app.include_router(campaigns_router.proposals_campaign_router)

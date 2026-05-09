@@ -1,11 +1,26 @@
 "use client";
 
-import { Check, Loader2, Pencil, RefreshCw, Sparkles, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  ExternalLink,
+  Loader2,
+  Pencil,
+  RefreshCw,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ModifyProposalDialog } from "@/components/proposals/ModifyProposalDialog";
 import { Button } from "@/components/ui/button";
-import { type GeneratedAsset, type Proposal, api } from "@/lib/api";
+import {
+  ApiError,
+  type Campaign,
+  type GeneratedAsset,
+  type Proposal,
+  api,
+} from "@/lib/api";
 import { formatARS } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -51,7 +66,9 @@ export function ProposalCard({
   const [openAsset, setOpenAsset] = useState<GeneratedAsset | null>(null);
   const [regenerating, setRegenerating] = useState(false);
   const [showModify, setShowModify] = useState(false);
+  const [campaign, setCampaign] = useState<Campaign | null>(null);
   const pollCountRef = useRef(0);
+  const campaignPollCountRef = useRef(0);
 
   // Polling: si hay assets en estado generating, refetch cada 3s.
   useEffect(() => {
@@ -73,6 +90,48 @@ export function ProposalCard({
     }, POLL_INTERVAL_MS);
     return () => clearTimeout(id);
   }, [local]);
+
+  // Cuando la propuesta está aprobada, cargamos la campaña asociada y
+  // pollearmos hasta que esté `created` o `failed`.
+  useEffect(() => {
+    if (local.status !== "approved") {
+      setCampaign(null);
+      campaignPollCountRef.current = 0;
+      return;
+    }
+    let cancelled = false;
+
+    const fetchCampaign = async () => {
+      try {
+        const c = await api.getCampaignForProposal(local.id);
+        if (!cancelled) setCampaign(c);
+        return c;
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) {
+          // Todavía no se creó. Seguir intentando.
+          if (!cancelled) setCampaign(null);
+          return null;
+        }
+        return null;
+      }
+    };
+
+    void fetchCampaign().then((c) => {
+      if (cancelled) return;
+      const stillWorking = !c || c.status === "creating" || c.status === "pending";
+      if (!stillWorking) return;
+      if (campaignPollCountRef.current >= MAX_POLLS) return;
+      const id = setTimeout(() => {
+        campaignPollCountRef.current += 1;
+        void fetchCampaign();
+      }, 4000);
+      return () => clearTimeout(id);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [local.id, local.status, campaign?.status]);
 
   const decide = async (kind: DecisionKind) => {
     if (kind === "rejected") {
@@ -244,6 +303,10 @@ export function ProposalCard({
           {error && <p className="text-sm text-accent">{error}</p>}
           {toast && !error && (
             <p className="font-mono text-xs text-emerald-700">{toast}</p>
+          )}
+
+          {local.status === "approved" && (
+            <CampaignMiniCard campaign={campaign} />
           )}
 
           {(local.status === "pending" || local.status === "modified") && (
@@ -432,5 +495,52 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       </span>
       <div className="text-ink">{children}</div>
     </div>
+  );
+}
+
+function CampaignMiniCard({ campaign }: { campaign: Campaign | null }) {
+  // Caso 1: todavía no llegó respuesta del backend → asumimos que está
+  // creándose (acabamos de aprobar y el background task arrancó).
+  if (!campaign || campaign.status === "creating" || campaign.status === "pending") {
+    return (
+      <div className="flex flex-col gap-2 rounded-md border border-amber-600/30 bg-amber-50 p-3 text-amber-900 sm:flex-row sm:items-center">
+        <Loader2 className="h-4 w-4 shrink-0 animate-spin" strokeWidth={1.8} />
+        <span className="text-sm">
+          Vera está preparando tu campaña en Meta. Te aviso por WhatsApp cuando esté lista.
+        </span>
+      </div>
+    );
+  }
+
+  if (campaign.status === "failed") {
+    return (
+      <div className="flex flex-col gap-2 rounded-md border border-accent/40 bg-accent/5 p-3 text-accent sm:flex-row sm:items-start">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.8} />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="font-mono text-[10px] uppercase tracking-wider">
+            Falló la creación
+          </span>
+          <span className="break-words text-sm">
+            {campaign.error_message ?? "Algo se rompió creando la campaña."}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // created / active / paused / finished — todos llevaron a Meta exitoso.
+  return (
+    <a
+      href={campaign.external_url ?? "#"}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex flex-col gap-2 rounded-md border border-emerald-600/30 bg-emerald-50 p-3 text-emerald-900 transition-colors hover:bg-emerald-100 sm:flex-row sm:items-center"
+    >
+      <Check className="h-4 w-4 shrink-0" strokeWidth={2.5} />
+      <span className="min-w-0 flex-1 break-words text-sm">
+        Campaña creada en Meta (en pausa). Vela ahí para activarla cuando quieras.
+      </span>
+      <ExternalLink className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} />
+    </a>
   );
 }

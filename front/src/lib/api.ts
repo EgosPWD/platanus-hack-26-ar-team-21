@@ -180,6 +180,46 @@ export type ModificationChanges = {
   creative_brief?: string;
 };
 
+export type CampaignKind = "meta_ads" | "google_ads" | "whatsapp_broadcast";
+
+export type CampaignStatus =
+  | "pending"
+  | "creating"
+  | "created"
+  | "failed"
+  | "active"
+  | "paused"
+  | "finished";
+
+export type CampaignMetrics = {
+  impressions: number | null;
+  clicks: number | null;
+  reach: number | null;
+  ctr: number | null;
+};
+
+export type Campaign = {
+  id: string;
+  merchant_id: string;
+  proposal_id: string;
+  kind: CampaignKind;
+  status: CampaignStatus;
+  publisher: string;
+  external_id: string | null;
+  external_url: string | null;
+  creative_count: number;
+  budget_ars: number | null;
+  error_message: string | null;
+  payload_snapshot: Record<string, unknown>;
+  metrics: CampaignMetrics;
+  created_at: string;
+  started_at: string | null;
+  ended_at: string | null;
+  last_synced_at: string | null;
+  product_name: string | null;
+  product_image_url: string | null;
+};
+
 export const api = {
   me: () => apiFetch<Merchant>("/me"),
   patchMe: (body: { business_name?: string; whatsapp_phone?: string; currency?: string }) =>
@@ -217,4 +257,13 @@ export const api = {
     apiFetch<Proposal>(`/proposals/${id}/regenerate`, { method: "POST" }),
 
   listNotifications: () => apiFetch<NotificationRow[]>("/notifications"),
+
+  // --- Capa 6: Campañas en Meta -------------------------------------------
+  getCampaigns: (status?: CampaignStatus) =>
+    apiFetch<Campaign[]>(`/campaigns${status ? `?status=${status}` : ""}`),
+  getCampaign: (id: string) => apiFetch<Campaign>(`/campaigns/${id}`),
+  refreshCampaign: (id: string) =>
+    apiFetch<Campaign>(`/campaigns/${id}/refresh`, { method: "POST" }),
+  getCampaignForProposal: (proposalId: string) =>
+    apiFetch<Campaign>(`/proposals/${proposalId}/campaign`),
 };

@@ -1,16 +1,24 @@
 "use client";
 
-import { ArrowRight, Sparkles, TrendingUp } from "lucide-react";
+import { ArrowRight, Megaphone, Sparkles, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { ApiError, api, type Merchant, type Proposal, type SalesSummary } from "@/lib/api";
+import {
+  ApiError,
+  api,
+  type Campaign,
+  type Merchant,
+  type Proposal,
+  type SalesSummary,
+} from "@/lib/api";
 import { formatARS } from "@/lib/format";
 
 export default function DashboardPage() {
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [summary, setSummary] = useState<SalesSummary | null>(null);
   const [pending, setPending] = useState<Proposal[] | null>(null);
+  const [campaigns, setCampaigns] = useState<Campaign[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -19,12 +27,14 @@ export default function DashboardPage() {
       api.me(),
       api.getSalesSummary(7),
       api.getProposals("pending"),
+      api.getCampaigns().catch(() => [] as Campaign[]),
     ])
-      .then(([m, s, p]) => {
+      .then(([m, s, p, c]) => {
         if (cancelled) return;
         setMerchant(m);
         setSummary(s);
         setPending(p);
+        setCampaigns(c);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -44,6 +54,12 @@ export default function DashboardPage() {
   const generating = (pending ?? []).find((p) =>
     p.generated_assets.some((a) => a.status === "generating"),
   );
+  const campaignsList = campaigns ?? [];
+  const totalCampaigns = campaignsList.length;
+  const activeCampaigns = campaignsList.filter((c) => c.status === "active").length;
+  const pausedCampaigns = campaignsList.filter(
+    (c) => c.status === "created" || c.status === "paused",
+  ).length;
 
   return (
     <div className="flex flex-col gap-8 sm:gap-10">
@@ -71,6 +87,40 @@ export default function DashboardPage() {
             …
           </span>
         </div>
+      )}
+
+      {totalCampaigns > 0 && (
+        <Link
+          href="/campaigns"
+          className="group flex items-center justify-between gap-4 rounded-lg border border-emerald-600/30 bg-emerald-50 p-5 transition-colors hover:bg-emerald-100 sm:p-6"
+        >
+          <div className="flex min-w-0 items-center gap-4">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
+              <Megaphone className="h-5 w-5" strokeWidth={1.8} />
+            </span>
+            <div className="flex min-w-0 flex-col">
+              <span className="font-mono text-[10px] uppercase tracking-wider text-emerald-700">
+                Meta Ads
+              </span>
+              <span className="break-words font-serif text-lg leading-snug text-ink sm:text-xl">
+                {totalCampaigns === 1
+                  ? "Tenés 1 campaña creada en Meta"
+                  : `Tenés ${totalCampaigns} campañas creadas en Meta`}
+                {pausedCampaigns > 0 && (
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {" "}
+                    · {pausedCampaigns} en pausa
+                    {activeCampaigns > 0 && `, ${activeCampaigns} activas`}
+                  </span>
+                )}
+              </span>
+            </div>
+          </div>
+          <ArrowRight
+            className="h-5 w-5 shrink-0 text-emerald-700 transition-transform group-hover:translate-x-1"
+            strokeWidth={1.8}
+          />
+        </Link>
       )}
 
       {pendingCount > 0 && (
