@@ -51,11 +51,21 @@ class Settings(BaseSettings):
     CREATIVE_COUNT: int = 5
     CREATIVE_ASPECT_RATIO: str = "1:1"
 
+    # WhatsApp (Evolution API)
+    EVOLUTION_API_URL: str = ""
+    EVOLUTION_API_KEY: str = ""
+    EVOLUTION_INSTANCE_NAME: str = "Vera"
+    EVOLUTION_FROM_NUMBER: str = ""
+
+    # URL pública del frontend (para armar links en mensajes de WhatsApp)
+    FRONTEND_BASE_URL: str = "http://localhost:3000"
+
     # Toggles de rollback (ver CLAUDE.md §11)
     USE_SHOPIFY_MOCK: bool = False
     USE_META_MOCK: bool = False
     USE_REPLICATE_MOCK: bool = False
     USE_OPENROUTER_MOCK: bool = False
+    USE_WHATSAPP_MOCK: bool = False
 
     # Agente Vera — heurísticas para "valer la pena proponer"
     AGENT_MODEL: str = "claude-sonnet-4-6"

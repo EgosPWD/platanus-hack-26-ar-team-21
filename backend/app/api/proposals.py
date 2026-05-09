@@ -8,18 +8,25 @@ from sqlalchemy import desc, select
 
 from app.agent.graph import run_vera
 from app.core.deps import CurrentMerchant, DbSession
-from app.db.models import AgentRun, Product, Proposal, ProposalStatus
+from app.db.models import AgentRun, Notification, Product, Proposal, ProposalStatus
+from app.schemas.notifications import NotificationRead
 from app.schemas.proposals import (
     AgentRunRead,
     AgentRunResult,
     ProductSnapshot,
     ProposalDecision,
+    ProposalDecisionRequest,
+    ProposalModificationRequest,
     ProposalRead,
 )
 from app.services.image_gen import (
     clear_assets,
     init_assets_for_proposal,
     run_creative_generation,
+)
+from app.services.notifier import (
+    notify_proposal_approved,
+    notify_proposal_rejected,
 )
 
 logger = logging.getLogger("vera.api.proposals")
@@ -218,36 +225,147 @@ async def regenerate_creatives(
     return _serialize_proposal(proposal, product)
 
 
-@router.patch("/{proposal_id}", response_model=ProposalRead)
-async def decide_proposal(
+def _ensure_decidable(proposal: Proposal) -> None:
+    """Aprobar/rechazar solo aplica a propuestas pending o modified."""
+    if proposal.status not in (ProposalStatus.pending, ProposalStatus.modified):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"La propuesta ya está {proposal.status.value}",
+        )
+
+
+def _attach_decision_notes(proposal: Proposal, notes: str | None) -> None:
+    if not notes:
+        return
+    payload = dict(proposal.payload or {})
+    payload["decision_notes"] = notes
+    proposal.payload = payload
+
+
+@router.post("/{proposal_id}/approve", response_model=ProposalRead)
+async def approve_proposal(
+    proposal_id: uuid.UUID,
+    body: ProposalDecisionRequest,
+    merchant: CurrentMerchant,
+    db: DbSession,
+) -> ProposalRead:
+    proposal, product = await _load_proposal_with_product(db, merchant.id, proposal_id)
+    if proposal is None:
+        raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+    _ensure_decidable(proposal)
+
+    proposal.status = ProposalStatus.approved
+    proposal.decided_at = datetime.now(timezone.utc)
+    _attach_decision_notes(proposal, body.notes)
+    await db.commit()
+    await db.refresh(proposal)
+
+    asyncio.create_task(_safe_notify(notify_proposal_approved, proposal_id))
+    return _serialize_proposal(proposal, product)
+
+
+@router.post("/{proposal_id}/reject", response_model=ProposalRead)
+async def reject_proposal(
+    proposal_id: uuid.UUID,
+    body: ProposalDecisionRequest,
+    merchant: CurrentMerchant,
+    db: DbSession,
+) -> ProposalRead:
+    proposal, product = await _load_proposal_with_product(db, merchant.id, proposal_id)
+    if proposal is None:
+        raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+    _ensure_decidable(proposal)
+
+    proposal.status = ProposalStatus.rejected
+    proposal.decided_at = datetime.now(timezone.utc)
+    _attach_decision_notes(proposal, body.notes)
+    await db.commit()
+    await db.refresh(proposal)
+
+    asyncio.create_task(_safe_notify(notify_proposal_rejected, proposal_id))
+    return _serialize_proposal(proposal, product)
+
+
+@router.patch("/{proposal_id}/modify", response_model=ProposalRead)
+async def modify_proposal(
+    proposal_id: uuid.UUID,
+    body: ProposalModificationRequest,
+    merchant: CurrentMerchant,
+    db: DbSession,
+) -> ProposalRead:
+    """Permite editar copy/budget/audience del payload sin notificar."""
+    proposal, product = await _load_proposal_with_product(db, merchant.id, proposal_id)
+    if proposal is None:
+        raise HTTPException(status_code=404, detail="Propuesta no encontrada")
+    if proposal.status not in (ProposalStatus.pending, ProposalStatus.modified):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"No puedo modificar una propuesta {proposal.status.value}",
+        )
+
+    changes = body.whitelisted()
+    if not changes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No hay campos válidos para modificar",
+        )
+
+    payload = dict(proposal.payload or {})
+    payload.update(changes)
+    proposal.payload = payload
+    proposal.status = ProposalStatus.modified
+    proposal.decided_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(proposal)
+    return _serialize_proposal(proposal, product)
+
+
+async def _safe_notify(fn, proposal_id: uuid.UUID) -> None:
+    try:
+        await fn(proposal_id)
+    except Exception:
+        logger.exception("notification %s failed for proposal=%s", fn.__name__, proposal_id)
+
+
+# Endpoint legacy — mantenido para compat hasta que se migre todo.
+@router.patch("/{proposal_id}", response_model=ProposalRead, deprecated=True)
+async def decide_proposal_legacy(
     proposal_id: uuid.UUID,
     decision: ProposalDecision,
     merchant: CurrentMerchant,
     db: DbSession,
 ) -> ProposalRead:
-    """Aprobar / rechazar / modificar.
-
-    Capa 3 solo cambia el status. La lógica completa (publicar, notificar)
-    queda para Capas 5 y 6.
-    """
     proposal, product = await _load_proposal_with_product(db, merchant.id, proposal_id)
     if proposal is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Propuesta no encontrada",
-        )
+        raise HTTPException(status_code=404, detail="Propuesta no encontrada")
 
     proposal.status = ProposalStatus(decision.status)
     proposal.decided_at = datetime.now(timezone.utc)
-    if decision.notes:
-        # No agregamos columna `notes` en la DB; lo metemos en el payload.
-        payload = dict(proposal.payload or {})
-        payload["decision_notes"] = decision.notes
-        proposal.payload = payload
-
+    _attach_decision_notes(proposal, decision.notes)
     await db.commit()
     await db.refresh(proposal)
     return _serialize_proposal(proposal, product)
+
+
+# --- Notifications (router aparte, mismo módulo) ---------------------------
+
+
+notifications_router = APIRouter(prefix="/notifications", tags=["notifications"])
+
+
+@notifications_router.get("", response_model=list[NotificationRead])
+async def list_notifications(
+    merchant: CurrentMerchant,
+    db: DbSession,
+    limit: int = Query(20, ge=1, le=100),
+) -> list[Notification]:
+    rows = await db.execute(
+        select(Notification)
+        .where(Notification.merchant_id == merchant.id)
+        .order_by(desc(Notification.created_at))
+        .limit(limit)
+    )
+    return list(rows.scalars().all())
 
 
 # --- Agent runs (separado del prefijo /proposals) ---------------------------

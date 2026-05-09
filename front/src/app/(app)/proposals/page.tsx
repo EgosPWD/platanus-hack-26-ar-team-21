@@ -1,17 +1,34 @@
 "use client";
 
 import { Loader2, Sparkles } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ProposalCard } from "@/components/proposals/ProposalCard";
 import { Button } from "@/components/ui/button";
-import { ApiError, api, type AgentRunResult, type Proposal } from "@/lib/api";
+import {
+  ApiError,
+  api,
+  type AgentRunResult,
+  type Proposal,
+  type ProposalStatus,
+} from "@/lib/api";
+import { cn } from "@/lib/utils";
+
+type TabKey = "pending" | "approved" | "rejected" | "all";
+
+const TABS: { key: TabKey; label: string; statuses: ProposalStatus[] | null }[] = [
+  { key: "pending", label: "Pendientes", statuses: ["pending", "modified"] },
+  { key: "approved", label: "Aprobadas", statuses: ["approved"] },
+  { key: "rejected", label: "Rechazadas", statuses: ["rejected"] },
+  { key: "all", label: "Todas", statuses: null },
+];
 
 export default function ProposalsPage() {
   const [proposals, setProposals] = useState<Proposal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [lastRun, setLastRun] = useState<AgentRunResult | null>(null);
+  const [tab, setTab] = useState<TabKey>("pending");
 
   const load = useCallback(async () => {
     setError(null);
@@ -55,6 +72,28 @@ export default function ProposalsPage() {
     );
   };
 
+  const counts = useMemo(() => {
+    const c: Record<TabKey, number> = {
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+      all: proposals?.length ?? 0,
+    };
+    for (const p of proposals ?? []) {
+      if (p.status === "pending" || p.status === "modified") c.pending += 1;
+      else if (p.status === "approved") c.approved += 1;
+      else if (p.status === "rejected") c.rejected += 1;
+    }
+    return c;
+  }, [proposals]);
+
+  const filtered = useMemo(() => {
+    if (!proposals) return null;
+    const def = TABS.find((t) => t.key === tab);
+    if (!def || def.statuses === null) return proposals;
+    return proposals.filter((p) => def.statuses!.includes(p.status));
+  }, [proposals, tab]);
+
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -81,6 +120,26 @@ export default function ProposalsPage() {
         </Button>
       </div>
 
+      <nav className="flex flex-wrap gap-1 border-b border-border">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={cn(
+              "-mb-px border-b-2 px-4 py-2 font-mono text-xs uppercase tracking-wider transition-colors",
+              tab === t.key
+                ? "border-accent text-ink"
+                : "border-transparent text-muted-foreground hover:text-ink",
+            )}
+          >
+            {t.label}
+            <span className="ml-2 font-mono text-[10px] text-muted-foreground">
+              ({counts[t.key]})
+            </span>
+          </button>
+        ))}
+      </nav>
+
       {error && <p className="font-mono text-sm text-accent">{error}</p>}
 
       {lastRun && lastRun.decision === "skip" && (
@@ -99,20 +158,24 @@ export default function ProposalsPage() {
         </div>
       )}
 
-      {proposals === null ? (
+      {filtered === null ? (
         <p className="text-muted-foreground">Cargando…</p>
-      ) : proposals.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-white p-12 text-center">
           <p className="font-serif text-2xl text-ink">
-            Vera todavía no tiene propuestas.
+            {tab === "pending"
+              ? "Vera todavía no tiene propuestas pendientes."
+              : `No hay propuestas en "${TABS.find((t) => t.key === tab)?.label}".`}
           </p>
-          <p className="mt-2 text-muted-foreground">
-            Pedile que analice tus ventas para arrancar.
-          </p>
+          {tab === "pending" && (
+            <p className="mt-2 text-muted-foreground">
+              Pedile que analice tus ventas para arrancar.
+            </p>
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-6">
-          {proposals.map((p) => (
+          {filtered.map((p) => (
             <ProposalCard key={p.id} proposal={p} onDecided={updateOne} />
           ))}
         </div>

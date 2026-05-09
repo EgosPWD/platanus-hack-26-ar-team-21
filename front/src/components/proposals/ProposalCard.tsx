@@ -1,8 +1,9 @@
 "use client";
 
-import { Check, Loader2, RefreshCw, Sparkles, X } from "lucide-react";
+import { Check, Loader2, Pencil, RefreshCw, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { ModifyProposalDialog } from "@/components/proposals/ModifyProposalDialog";
 import { Button } from "@/components/ui/button";
 import { type GeneratedAsset, type Proposal, api } from "@/lib/api";
 import { formatARS } from "@/lib/format";
@@ -34,6 +35,8 @@ const POLL_INTERVAL_MS = 3000;
 const MAX_POLLS = 60; // 3 minutos máximo de espera
 
 
+type DecisionKind = "approved" | "rejected";
+
 export function ProposalCard({
   proposal,
   onDecided,
@@ -41,11 +44,13 @@ export function ProposalCard({
   proposal: Proposal;
   onDecided?: (updated: Proposal) => void;
 }) {
-  const [busy, setBusy] = useState<"approved" | "rejected" | null>(null);
+  const [busy, setBusy] = useState<DecisionKind | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const [local, setLocal] = useState<Proposal>(proposal);
   const [openAsset, setOpenAsset] = useState<GeneratedAsset | null>(null);
   const [regenerating, setRegenerating] = useState(false);
+  const [showModify, setShowModify] = useState(false);
   const pollCountRef = useRef(0);
 
   // Polling: si hay assets en estado generating, refetch cada 3s.
@@ -69,18 +74,39 @@ export function ProposalCard({
     return () => clearTimeout(id);
   }, [local]);
 
-  const decide = async (status: "approved" | "rejected") => {
-    setBusy(status);
+  const decide = async (kind: DecisionKind) => {
+    if (kind === "rejected") {
+      const ok = window.confirm(
+        "¿Seguro que querés rechazar esta propuesta? Vera no la va a publicar.",
+      );
+      if (!ok) return;
+    }
+    setBusy(kind);
     setError(null);
+    setToast(null);
     try {
-      const updated = await api.decideProposal(local.id, status);
+      const updated =
+        kind === "approved"
+          ? await api.approveProposal(local.id)
+          : await api.rejectProposal(local.id);
       setLocal(updated);
       onDecided?.(updated);
+      setToast(
+        kind === "approved"
+          ? "Aprobada. Te aviso por WhatsApp."
+          : "Rechazada. Voy a seguir mirando tus ventas.",
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "No pude actualizar");
     } finally {
       setBusy(null);
     }
+  };
+
+  const onModified = (updated: Proposal) => {
+    setLocal(updated);
+    onDecided?.(updated);
+    setToast("Propuesta modificada. Revisá y aprobá cuando quieras.");
   };
 
   const regenerate = useCallback(async () => {
@@ -216,8 +242,11 @@ export function ProposalCard({
           )}
 
           {error && <p className="text-sm text-accent">{error}</p>}
+          {toast && !error && (
+            <p className="font-mono text-xs text-emerald-700">{toast}</p>
+          )}
 
-          {local.status === "pending" && (
+          {(local.status === "pending" || local.status === "modified") && (
             <footer className="flex flex-wrap items-center gap-3 pt-2">
               <Button onClick={() => decide("approved")} disabled={busy !== null}>
                 <Check className="mr-2 h-4 w-4" strokeWidth={2} />
@@ -231,13 +260,37 @@ export function ProposalCard({
                 <X className="mr-2 h-4 w-4" strokeWidth={2} />
                 {busy === "rejected" ? "Rechazando…" : "Rechazar"}
               </Button>
+              <button
+                type="button"
+                onClick={() => setShowModify(true)}
+                disabled={busy !== null}
+                className="ml-1 inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-ink disabled:opacity-50"
+              >
+                <Pencil className="h-3 w-3" strokeWidth={1.8} />
+                Modificar
+              </button>
             </footer>
           )}
+
+          {(local.status === "approved" || local.status === "rejected") &&
+            local.decided_at && (
+              <p className="font-mono text-xs text-muted-foreground">
+                Decisión: {new Date(local.decided_at).toLocaleString("es-AR")}
+              </p>
+            )}
         </div>
       </div>
 
       {openAsset && (
         <AssetModal asset={openAsset} onClose={() => setOpenAsset(null)} />
+      )}
+
+      {showModify && (
+        <ModifyProposalDialog
+          proposal={local}
+          onClose={() => setShowModify(false)}
+          onSaved={onModified}
+        />
       )}
     </article>
   );

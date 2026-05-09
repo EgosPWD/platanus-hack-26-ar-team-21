@@ -159,8 +159,31 @@ export type AgentRunResult = {
   error: string | null;
 };
 
+export type NotificationRow = {
+  id: string;
+  merchant_id: string;
+  proposal_id: string | null;
+  kind: string;
+  status: "pending" | "sent" | "failed";
+  channel: string;
+  target_phone: string | null;
+  message_body: string;
+  error_message: string | null;
+  sent_at: string | null;
+  created_at: string;
+};
+
+export type ModificationChanges = {
+  copy_es?: string;
+  audience_hint?: string;
+  suggested_budget_ars?: number;
+  creative_brief?: string;
+};
+
 export const api = {
   me: () => apiFetch<Merchant>("/me"),
+  patchMe: (body: { business_name?: string; whatsapp_phone?: string; currency?: string }) =>
+    apiFetch<Merchant>("/me", { method: "PATCH", body }),
   getProducts: () => apiFetch<Product[]>("/products"),
   getSalesSummary: (days = 7) =>
     apiFetch<SalesSummary>(`/sales/summary?days=${days}`),
@@ -173,13 +196,25 @@ export const api = {
       `/proposals${status ? `?status=${status}` : ""}`,
     ),
   getProposal: (id: string) => apiFetch<Proposal>(`/proposals/${id}`),
-  decideProposal: (id: string, status: "approved" | "rejected" | "modified", notes?: string) =>
-    apiFetch<Proposal>(`/proposals/${id}`, {
+  approveProposal: (id: string, notes?: string) =>
+    apiFetch<Proposal>(`/proposals/${id}/approve`, {
+      method: "POST",
+      body: { notes },
+    }),
+  rejectProposal: (id: string, notes?: string) =>
+    apiFetch<Proposal>(`/proposals/${id}/reject`, {
+      method: "POST",
+      body: { notes },
+    }),
+  modifyProposal: (id: string, changes: ModificationChanges) =>
+    apiFetch<Proposal>(`/proposals/${id}/modify`, {
       method: "PATCH",
-      body: { status, notes },
+      body: { changes },
     }),
   generateCreatives: (id: string) =>
     apiFetch<Proposal>(`/proposals/${id}/generate`, { method: "POST" }),
   regenerateCreatives: (id: string) =>
     apiFetch<Proposal>(`/proposals/${id}/regenerate`, { method: "POST" }),
+
+  listNotifications: () => apiFetch<NotificationRow[]>("/notifications"),
 };

@@ -20,4 +20,14 @@ if settings.USE_OPENROUTER_MOCK:
 else:
     from app.integrations.openrouter_client import OpenRouterImageClient
 
-__all__ = ["ShopifyClient", "MetaAdsClient", "OpenRouterImageClient"]
+if settings.USE_WHATSAPP_MOCK:
+    from app.integrations.evolution_mock import EvolutionClient
+else:
+    from app.integrations.evolution_client import EvolutionClient
+
+__all__ = [
+    "ShopifyClient",
+    "MetaAdsClient",
+    "OpenRouterImageClient",
+    "EvolutionClient",
+]

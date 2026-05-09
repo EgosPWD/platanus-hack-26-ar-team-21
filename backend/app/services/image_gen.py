@@ -219,6 +219,29 @@ async def run_creative_generation(proposal_id: UUID) -> list[dict[str, Any]]:
         proposal_id,
         time.perf_counter() - started,
     )
+
+    # Si al menos un asset quedó listo, notificamos al merchant. Si todos
+    # fallaron, mejor quedarse callado — notificar un fracaso al teléfono de
+    # Ana sería ruido. Queda registrado en logs y en proposal.generated_assets.
+    ready_count = sum(1 for a in assets if a.get("status") == "ready")
+    if ready_count > 0:
+        from app.services.notifier import notify_proposal_ready
+
+        async def _safe_notify() -> None:
+            try:
+                await notify_proposal_ready(proposal_id)
+            except Exception:
+                logger.exception(
+                    "notify_proposal_ready failed for proposal=%s", proposal_id
+                )
+
+        asyncio.create_task(_safe_notify())
+    else:
+        logger.warning(
+            "skipping notify_proposal_ready: 0 assets ready for proposal=%s",
+            proposal_id,
+        )
+
     return assets
 
 

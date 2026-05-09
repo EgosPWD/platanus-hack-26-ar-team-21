@@ -223,3 +223,46 @@ class AgentRun(Base):
         server_default=func.now(),
         nullable=False,
     )
+
+
+class NotificationStatus(str, enum.Enum):
+    pending = "pending"
+    sent = "sent"
+    failed = "failed"
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    merchant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("merchants.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    proposal_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("proposals.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    # kind: 'proposal_ready' | 'proposal_approved_confirmation' |
+    #       'proposal_rejected_confirmation' | 'creatives_completed'
+    kind: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[NotificationStatus] = mapped_column(
+        SQLEnum(NotificationStatus, name="notification_status", native_enum=True),
+        default=NotificationStatus.pending,
+        nullable=False,
+    )
+    channel: Mapped[str] = mapped_column(String(32), default="whatsapp", nullable=False)
+    target_phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    message_body: Mapped[str] = mapped_column(Text, nullable=False)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )

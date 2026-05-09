@@ -3,6 +3,8 @@ export type {
   AssetStatus,
   GeneratedAsset,
   Merchant,
+  ModificationChanges,
+  NotificationRow,
   Product,
   ProductSnapshot,
   Proposal,

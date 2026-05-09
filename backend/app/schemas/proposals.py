@@ -76,10 +76,42 @@ class ProposalRead(BaseModel):
 
 
 class ProposalDecision(BaseModel):
-    """Patch que el frontend manda para aprobar/rechazar/modificar."""
+    """Patch que el frontend manda para aprobar/rechazar/modificar.
+
+    Mantenido para compatibilidad. Las nuevas pantallas usan los endpoints
+    específicos /approve y /reject (con `ProposalDecisionRequest`) y /modify
+    (con `ProposalModificationRequest`).
+    """
 
     status: Literal["approved", "rejected", "modified"]
     notes: str | None = None
+
+
+class ProposalDecisionRequest(BaseModel):
+    """Body de POST /proposals/{id}/approve y /reject. `notes` opcional."""
+
+    notes: str | None = None
+
+
+_ALLOWED_MODIFY_FIELDS: set[str] = {
+    "copy_es",
+    "audience_hint",
+    "suggested_budget_ars",
+    "creative_brief",
+}
+
+
+class ProposalModificationRequest(BaseModel):
+    """Body de PATCH /proposals/{id}/modify.
+
+    Solo se permiten cambios sobre los campos del payload listados arriba —
+    las imágenes y el reasoning no se modifican manualmente desde acá.
+    """
+
+    changes: dict[str, Any] = Field(default_factory=dict)
+
+    def whitelisted(self) -> dict[str, Any]:
+        return {k: v for k, v in self.changes.items() if k in _ALLOWED_MODIFY_FIELDS}
 
 
 class AgentRunRead(BaseModel):
