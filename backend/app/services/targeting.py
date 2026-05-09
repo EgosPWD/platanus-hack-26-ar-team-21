@@ -92,6 +92,12 @@ def build_meta_targeting(
         "geo_locations": {"countries": [country]},
         "age_min": age_min,
         "age_max": age_max,
+        # Meta v25+ exige que decidas explícitamente si querés que su IA
+        # expanda tu targeting con "Advantage Audience". Lo dejamos en 0
+        # (off) porque queremos respetar exactamente lo que el agente
+        # decidió: ese targeting tiene reasoning detrás, no queremos que
+        # la IA de Meta lo "mejore" sin pedirnos.
+        "targeting_automation": {"advantage_audience": 0},
     }
     if genders is not None:
         targeting["genders"] = genders
