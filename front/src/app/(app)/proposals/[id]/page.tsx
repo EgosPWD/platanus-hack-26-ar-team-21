@@ -56,8 +56,6 @@ export default function ProposalDetailPage() {
         </h1>
       </div>
 
-      {error && <p className="font-mono text-sm text-accent">{error}</p>}
-
       {notFound ? (
         <div className="rounded-lg border border-dashed border-border bg-white p-12 text-center">
           <p className="font-serif text-2xl text-ink">
@@ -72,6 +70,16 @@ export default function ProposalDetailPage() {
           >
             Ver todas las propuestas →
           </Link>
+        </div>
+      ) : error ? (
+        <div className="rounded-lg border border-border bg-white p-8">
+          <p className="font-mono text-sm text-accent">{error}</p>
+          <button
+            onClick={() => void load()}
+            className="mt-3 font-mono text-xs uppercase tracking-wider text-muted-foreground hover:text-ink"
+          >
+            Reintentar →
+          </button>
         </div>
       ) : proposal === null ? (
         <p className="text-muted-foreground">Cargando…</p>
