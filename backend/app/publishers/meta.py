@@ -188,16 +188,27 @@ class MetaPublisher(Publisher):
         daily_budget_cents: int,
         assets: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        """El flujo real de creación. Lo separo para que el publish() de
-        arriba quede claro y los errores se capturen en un solo lugar."""
+        """El flujo real de creación. Cada paso logea qué se intentó para
+        que cuando algo falle el log tenga el "qué" además del "por qué"."""
         # 1) Campaign
+        logger.info(
+            "publisher | step=create_campaign name=%r objective=OUTCOME_TRAFFIC",
+            campaign_name,
+        )
         campaign_resp = await self.client.create_campaign(
             name=campaign_name,
             objective="OUTCOME_TRAFFIC",
         )
         cid = campaign_resp["id"]
+        logger.info("publisher | created campaign id=%s", cid)
 
         # 2) AdSet — una sola, con los 5 ads colgando.
+        logger.info(
+            "publisher | step=create_ad_set campaign_id=%s daily_budget_cents=%s targeting=%s",
+            cid,
+            daily_budget_cents,
+            targeting,
+        )
         adset_resp = await self.client.create_ad_set(
             campaign_id=cid,
             name=f"{campaign_name} · Default ad set",
@@ -205,17 +216,28 @@ class MetaPublisher(Publisher):
             targeting=targeting,
         )
         adset_id = adset_resp["id"]
+        logger.info("publisher | created ad_set id=%s", adset_id)
 
         # 3) Por cada creatividad ready: AdCreative + Ad
         ads: list[dict[str, Any]] = []
         for asset in assets:
             variant_name = asset.get("variant_name") or "creative"
+            logger.info(
+                "publisher | step=create_creative variant=%s url=%s",
+                variant_name,
+                asset["url"],
+            )
             creative_resp = await self.client.create_creative_from_image_url(
                 name=f"{campaign_name} — {variant_name}",
                 image_url=asset["url"],
                 message=copy_es,
                 link=landing_url,
                 call_to_action="SHOP_NOW",
+            )
+            logger.info(
+                "publisher | step=create_ad creative_id=%s variant=%s",
+                creative_resp["id"],
+                variant_name,
             )
             ad_resp = await self.client.create_ad(
                 ad_set_id=adset_id,

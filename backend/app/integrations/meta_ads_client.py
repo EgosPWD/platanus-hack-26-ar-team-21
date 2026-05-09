@@ -54,6 +54,43 @@ def _map_fb_error(exc: FacebookRequestError) -> MetaAdsError:
     raw_msg = exc.api_error_message() or str(exc)
     lowered = raw_msg.lower()
 
+    # Sacar todo lo que Meta nos da en el body — `error_user_msg` y
+    # `error_user_title` suelen tener el motivo real cuando `message` es
+    # genérico tipo "Invalid parameter".
+    body: Any = None
+    error_user_msg: str | None = None
+    error_user_title: str | None = None
+    try:
+        body = exc.body()
+    except Exception:
+        body = None
+    if isinstance(body, dict):
+        err = body.get("error") or {}
+        error_user_msg = err.get("error_user_msg")
+        error_user_title = err.get("error_user_title")
+
+    request_ctx: Any = None
+    try:
+        request_ctx = exc.request_context()
+    except Exception:
+        request_ctx = None
+
+    # Log completo para debugging — el usuario rara vez puede mandar
+    # el body crudo a soporte, así que lo persistimos en el log estructurado.
+    logger.warning(
+        "meta error code=%s subcode=%s msg=%r user_msg=%r user_title=%r body=%s req=%s",
+        code,
+        subcode,
+        raw_msg,
+        error_user_msg,
+        error_user_title,
+        body,
+        request_ctx,
+    )
+
+    # Composer del mensaje user-friendly
+    detail = error_user_msg or error_user_title or raw_msg
+
     if code == 190:
         msg = "Token de Meta inválido o expirado. Generá un nuevo System User Token."
     elif code == 100 and (
@@ -61,9 +98,6 @@ def _map_fb_error(exc: FacebookRequestError) -> MetaAdsError:
         or "missing permissions" in lowered
         or "cannot be loaded" in lowered
     ):
-        # Meta devuelve 100 para muchas cosas. Cuando el mensaje habla de
-        # "does not exist" o "missing permissions" es realmente un problema
-        # de acceso al ad account, no un parámetro inválido. Reframeamos.
         msg = (
             "El token de Meta no tiene acceso a este ad account. "
             "Verificá que el System User esté asignado al ad account en el "
@@ -71,7 +105,10 @@ def _map_fb_error(exc: FacebookRequestError) -> MetaAdsError:
             "token incluya ads_management."
         )
     elif code == 100:
-        msg = f"Parámetro inválido en Meta: {raw_msg}"
+        # "Invalid parameter" puro y duro. Damos lo que tengamos —
+        # detail puede ser el mensaje de Meta o un user_msg específico.
+        suffix = f" (subcode {subcode})" if subcode else ""
+        msg = f"Meta rechazó parámetros de la campaña{suffix}: {detail}"
     elif code == 17:
         msg = "Meta nos está rate-limiteando. Esperá 1 minuto y reintentamos."
     elif code in (200, 210):
@@ -79,12 +116,24 @@ def _map_fb_error(exc: FacebookRequestError) -> MetaAdsError:
             "Faltan permisos en el token de Meta (revisá ads_management y que el "
             "token sea de System User)."
         )
-    elif code == 2635:  # ad account inactive
+    elif code == 2635:
         msg = "La cuenta de ads de Meta está inactiva. Revisala en Business Manager."
     else:
-        msg = f"Meta rechazó la operación (code={code}/{subcode}): {raw_msg}"
+        msg = f"Meta rechazó la operación (code={code}/{subcode}): {detail}"
 
-    return MetaAdsError(msg, code=code, raw={"code": code, "subcode": subcode, "msg": raw_msg})
+    return MetaAdsError(
+        msg,
+        code=code,
+        raw={
+            "code": code,
+            "subcode": subcode,
+            "msg": raw_msg,
+            "user_msg": error_user_msg,
+            "user_title": error_user_title,
+            "body": body,
+            "request": request_ctx,
+        },
+    )
 
 
 class MetaAdsClient:
