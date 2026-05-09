@@ -254,6 +254,11 @@ class MetaAdsClient:
                 "daily_budget": daily_budget_cents,
                 "billing_event": billing_event,
                 "optimization_goal": optimization_goal,
+                # Sin esto, Meta v25+ rechaza con code=100 subcode=2490487
+                # exigiendo bid amount o ROAS targets. LOWEST_COST_WITHOUT_CAP
+                # es la estrategia más simple: gastá el daily_budget sin tope
+                # por puja, optimizando lo mejor posible.
+                "bid_strategy": "LOWEST_COST_WITHOUT_CAP",
                 "targeting": targeting,
                 "status": "PAUSED",
                 "start_time": (now + timedelta(minutes=5)).isoformat(),
