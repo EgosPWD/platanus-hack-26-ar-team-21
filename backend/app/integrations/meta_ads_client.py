@@ -118,6 +118,12 @@ def _map_fb_error(exc: FacebookRequestError) -> MetaAdsError:
             "(ej: https://verenice.online). 'localhost' y 'http://' no son "
             "aceptados por la Marketing API."
         )
+    elif code == 100 and subcode == 1885183:
+        msg = (
+            "Tu app de Meta está en modo Development. Pasala a 'Live' en "
+            "https://developers.facebook.com/apps/<APP_ID>/app-review/ — "
+            "Marketing API exige Live para crear ad creatives."
+        )
     elif code == 100:
         # "Invalid parameter" puro y duro. Damos lo que tengamos —
         # detail puede ser el mensaje de Meta o un user_msg específico.
