@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Sparkles } from "lucide-react";
+import { Check, Loader2, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ProposalCard } from "@/components/proposals/ProposalCard";
@@ -29,6 +29,10 @@ export default function ProposalsPage() {
   const [running, setRunning] = useState(false);
   const [lastRun, setLastRun] = useState<AgentRunResult | null>(null);
   const [tab, setTab] = useState<TabKey>("pending");
+  const [decisionFeedback, setDecisionFeedback] = useState<{
+    kind: "approved" | "rejected" | "modified";
+    productName: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -70,7 +74,21 @@ export default function ProposalsPage() {
     setProposals((prev) =>
       prev ? prev.map((p) => (p.id === updated.id ? updated : p)) : prev,
     );
+    if (updated.status === "approved" || updated.status === "rejected" || updated.status === "modified") {
+      setDecisionFeedback({
+        kind: updated.status,
+        productName: updated.product?.name ?? "la propuesta",
+      });
+      // Refetch para asegurar que la UI quede sincronizada con el backend.
+      void load();
+    }
   };
+
+  useEffect(() => {
+    if (!decisionFeedback) return;
+    const id = setTimeout(() => setDecisionFeedback(null), 6000);
+    return () => clearTimeout(id);
+  }, [decisionFeedback]);
 
   const counts = useMemo(() => {
     const c: Record<TabKey, number> = {
@@ -141,6 +159,62 @@ export default function ProposalsPage() {
       </nav>
 
       {error && <p className="font-mono text-sm text-accent">{error}</p>}
+
+      {decisionFeedback && (
+        <div
+          className={cn(
+            "flex items-start gap-3 rounded-lg border p-4",
+            decisionFeedback.kind === "approved" &&
+              "border-emerald-600/30 bg-emerald-50 text-emerald-900",
+            decisionFeedback.kind === "rejected" &&
+              "border-border bg-bg text-muted-foreground",
+            decisionFeedback.kind === "modified" &&
+              "border-amber-600/30 bg-amber-50 text-amber-900",
+          )}
+        >
+          <span
+            className={cn(
+              "mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
+              decisionFeedback.kind === "approved" && "bg-emerald-600 text-white",
+              decisionFeedback.kind === "rejected" && "bg-muted text-muted-foreground",
+              decisionFeedback.kind === "modified" && "bg-amber-600 text-white",
+            )}
+          >
+            {decisionFeedback.kind === "approved" ? (
+              <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
+            ) : decisionFeedback.kind === "rejected" ? (
+              <X className="h-3.5 w-3.5" strokeWidth={2.5} />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" strokeWidth={2} />
+            )}
+          </span>
+          <div className="flex-1">
+            <p className="font-serif text-base leading-snug">
+              {decisionFeedback.kind === "approved" &&
+                `Aprobaste la propuesta para "${decisionFeedback.productName}". Ya pasó a Aprobadas y te avisé por WhatsApp.`}
+              {decisionFeedback.kind === "rejected" &&
+                `Rechazaste la propuesta para "${decisionFeedback.productName}". Voy a seguir mirando tus ventas.`}
+              {decisionFeedback.kind === "modified" &&
+                `Guardé los cambios en "${decisionFeedback.productName}". Revisala y aprobala cuando quieras.`}
+            </p>
+            {decisionFeedback.kind === "approved" && (
+              <button
+                onClick={() => setTab("approved")}
+                className="mt-1 font-mono text-[10px] uppercase tracking-wider underline-offset-2 hover:underline"
+              >
+                Ver en Aprobadas →
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => setDecisionFeedback(null)}
+            className="shrink-0 rounded-full p-1 hover:bg-black/5"
+            aria-label="Cerrar"
+          >
+            <X className="h-3.5 w-3.5" strokeWidth={2} />
+          </button>
+        </div>
+      )}
 
       {lastRun && lastRun.decision === "skip" && (
         <div className="rounded-lg border border-border bg-bg p-5">
