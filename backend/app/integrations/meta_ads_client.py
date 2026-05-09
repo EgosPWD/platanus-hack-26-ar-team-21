@@ -21,8 +21,8 @@ API surface mínima esperada por MetaPublisher:
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
-import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -350,11 +350,11 @@ class MetaAdsClient:
 
         def _upload_and_create() -> dict[str, Any]:
             account = AdAccount(self.ad_account_id, api=self._api)
-            tmp_name = f"/tmp/vera-meta-{uuid.uuid4().hex}.png"
-            with open(tmp_name, "wb") as f:
-                f.write(content)
+            # Subir el binario directamente vía base64. Evita escribir a
+            # disco — el path original /tmp/... no existe en Windows y nos
+            # ahorra ensuciar el filesystem en cualquier OS.
             ad_image = AdImage(parent_id=self.ad_account_id, api=self._api)
-            ad_image[AdImage.Field.filename] = tmp_name
+            ad_image[AdImage.Field.bytes] = base64.b64encode(content).decode("ascii")
             ad_image.remote_create()
             image_hash = ad_image[AdImage.Field.hash]
 
