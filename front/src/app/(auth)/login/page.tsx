@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -20,7 +20,10 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-export default function LoginPage() {
+// useSearchParams() bailea de SSG en Next.js 15. Para que el build no
+// falle por prerender, separamos el form que lo usa y lo wrappeamos en
+// <Suspense> dentro del page export.
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/dashboard";
@@ -45,43 +48,51 @@ export default function LoginPage() {
   };
 
   return (
+    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="email">Email</Label>
+        <Input id="email" type="email" autoComplete="email" {...register("email")} />
+        {errors.email && (
+          <p className="text-xs text-accent">{errors.email.message}</p>
+        )}
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="password">Contraseña</Label>
+        <Input
+          id="password"
+          type="password"
+          autoComplete="current-password"
+          {...register("password")}
+        />
+        {errors.password && (
+          <p className="text-xs text-accent">{errors.password.message}</p>
+        )}
+      </div>
+      {serverError && <p className="text-sm text-accent">{serverError}</p>}
+      <Button type="submit" disabled={isSubmitting}>
+        {isSubmitting ? "Entrando…" : "Entrar"}
+      </Button>
+      <p className="text-center text-sm text-muted-foreground">
+        ¿Sos nueva?{" "}
+        <Link href="/signup" className="text-accent hover:underline">
+          Creá tu cuenta
+        </Link>
+      </p>
+    </form>
+  );
+}
+
+export default function LoginPage() {
+  return (
     <Card>
       <CardHeader>
         <CardTitle>Hola de nuevo</CardTitle>
         <CardDescription>Entrá para ver tus propuestas.</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" autoComplete="email" {...register("email")} />
-            {errors.email && (
-              <p className="text-xs text-accent">{errors.email.message}</p>
-            )}
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="password">Contraseña</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              {...register("password")}
-            />
-            {errors.password && (
-              <p className="text-xs text-accent">{errors.password.message}</p>
-            )}
-          </div>
-          {serverError && <p className="text-sm text-accent">{serverError}</p>}
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Entrando…" : "Entrar"}
-          </Button>
-          <p className="text-center text-sm text-muted-foreground">
-            ¿Sos nueva?{" "}
-            <Link href="/signup" className="text-accent hover:underline">
-              Creá tu cuenta
-            </Link>
-          </p>
-        </form>
+        <Suspense fallback={<p className="text-sm text-muted-foreground">Cargando…</p>}>
+          <LoginForm />
+        </Suspense>
       </CardContent>
     </Card>
   );
