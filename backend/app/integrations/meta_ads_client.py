@@ -209,11 +209,17 @@ class MetaAdsClient:
                 "objective": objective,
                 "status": "PAUSED",  # HARD-CODED — nunca cambiar.
                 "special_ad_categories": [],
+                # Meta v25+ exige declarar explícitamente si los ad sets
+                # comparten budget. Como manejamos budget a nivel ad_set
+                # (más flexible para hackathon), va False.
+                "is_adset_budget_sharing_enabled": False,
             }
             # Para Capa 6 manejamos budget a nivel ad_set (más flexible),
             # pero dejamos el hook por si más adelante queremos campaign-level.
             if daily_budget_cents:
                 params["daily_budget"] = daily_budget_cents
+                # Si seteamos budget a nivel campaign, sí lo compartimos.
+                params["is_adset_budget_sharing_enabled"] = True
             campaign = account.create_campaign(params=params)
             cid = campaign["id"]
             return {
