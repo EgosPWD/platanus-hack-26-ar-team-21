@@ -111,6 +111,13 @@ def _map_fb_error(exc: FacebookRequestError) -> MetaAdsError:
             "en el .env con el ID de tu página de Facebook (Business Manager "
             "→ Pages → Settings → About → 'Page ID')."
         )
+    elif code == 100 and subcode == 1885317:
+        msg = (
+            "Meta rechazó el link del ad porque no es una URL pública válida. "
+            "Cambiá FRONTEND_BASE_URL en el .env a una URL HTTPS pública "
+            "(ej: https://verenice.online). 'localhost' y 'http://' no son "
+            "aceptados por la Marketing API."
+        )
     elif code == 100:
         # "Invalid parameter" puro y duro. Damos lo que tengamos —
         # detail puede ser el mensaje de Meta o un user_msg específico.
