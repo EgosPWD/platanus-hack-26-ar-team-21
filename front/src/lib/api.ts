@@ -72,6 +72,42 @@ export type Merchant = {
   created_at: string;
 };
 
+export type Product = {
+  id: string;
+  merchant_id: string;
+  external_id: string;
+  name: string;
+  description: string | null;
+  price: string;
+  category: string | null;
+  image_urls: string[];
+  attributes: Record<string, unknown>;
+  is_active: boolean;
+  last_synced_at: string | null;
+};
+
+export type SalesSummary = {
+  total_revenue: string;
+  total_units: number;
+  top_product_id: string | null;
+  top_product_name: string | null;
+  top_product_units: number;
+  top_product_image_url: string | null;
+  period_days: number;
+};
+
+export type ShopifySyncResult = {
+  synced_products: number;
+  synced_sales: number;
+  errors: string[];
+  integration_status: "ok" | "mock" | "real_failed_using_cache";
+};
+
 export const api = {
   me: () => apiFetch<Merchant>("/me"),
+  getProducts: () => apiFetch<Product[]>("/products"),
+  getSalesSummary: (days = 7) =>
+    apiFetch<SalesSummary>(`/sales/summary?days=${days}`),
+  syncShopify: () =>
+    apiFetch<ShopifySyncResult>("/products/sync", { method: "POST" }),
 };

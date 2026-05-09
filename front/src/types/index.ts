@@ -1,1 +1,6 @@
-export type { Merchant } from "@/lib/api";
+export type {
+  Merchant,
+  Product,
+  SalesSummary,
+  ShopifySyncResult,
+} from "@/lib/api";

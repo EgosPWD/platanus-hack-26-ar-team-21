@@ -27,7 +27,23 @@ class Settings(BaseSettings):
     WHATSAPP_PHONE_NUMBER_ID: str = ""
     WHATSAPP_ACCESS_TOKEN: str = ""
 
-    PUBLISHER_DEFAULT: Literal["mock_meta", "whatsapp_broadcast"] = "mock_meta"
+    # Shopify (Admin API + custom app token)
+    SHOPIFY_API_KEY: str = ""
+    SHOPIFY_API_SECRET: str = ""
+    SHOPIFY_SHOP_DOMAIN: str = ""
+    SHOPIFY_ADMIN_TOKEN: str = ""
+
+    # Meta Ads (development mode)
+    META_APP_ID: str = ""
+    META_APP_SECRET: str = ""
+    META_ACCESS_TOKEN: str = ""
+    META_AD_ACCOUNT_ID: str = ""
+
+    # Toggles de rollback (ver CLAUDE.md §11)
+    USE_SHOPIFY_MOCK: bool = False
+    USE_META_MOCK: bool = False
+    USE_REPLICATE_MOCK: bool = False
+
     ENV: Literal["development", "staging", "production"] = "development"
 
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
