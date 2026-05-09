@@ -52,8 +52,9 @@ services:
       <<: *backend-env
     expose:
       - "8000"
-    volumes:
-      - ./backend:/app
+    # Sin bind mount — el código vive adentro de la imagen (COPY del
+    # Dockerfile). En Dokploy las paths relativas no resuelven igual que
+    # en local y el bind mount terminaba apuntando a un dir vacío.
     command: >
       sh -c "test -n \"$$DATABASE_URL\" || (echo 'DATABASE_URL debe estar definido en backend/.env apuntando a Supabase' >&2; exit 1);
              alembic upgrade head &&
@@ -63,7 +64,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
-      start_period: 15s
+      start_period: 30s
 
   frontend:
     build:
@@ -103,8 +104,6 @@ services:
         required: false
     environment:
       <<: *backend-env
-    volumes:
-      - ./backend:/app
     depends_on:
       backend:
         condition: service_healthy
