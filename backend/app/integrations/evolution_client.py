@@ -27,19 +27,37 @@ class WhatsAppError(Exception):
 
 
 def normalize_phone(raw: str) -> str:
-    """Normaliza un número a formato Evolution: solo dígitos, con código de país.
+    """Normaliza un número al formato que Evolution espera (solo dígitos, con
+    código de país).
 
-    - "+5493510000000"   → "5493510000000"
-    - "5493510000000"    → "5493510000000"
-    - "3510000000"       → "5493510000000"   (asume Argentina mobile)
-    - "(0351) 555-1234"  → "543515551234" → "5493515551234"
+    Reglas:
+    - Si el input arranca con "+", lo respetamos como internacional ya
+      formateado: solo limpiamos no-dígitos y devolvemos. Ej:
+        "+59165830355"      → "59165830355"   (Bolivia)
+        "+5493510000000"    → "5493510000000" (Argentina)
+        "+1 555 123 4567"   → "15551234567"   (USA)
 
-    Si el resultado no llega a 10 dígitos, levanta ValueError.
+    - Si NO hay "+", asumimos Argentina (es la audiencia de Vera) y agregamos
+      "549" cuando falta, más el "9" mobile cuando hace falta. Ej:
+        "5493510000000"     → "5493510000000"
+        "3510000000"        → "5493510000000"
+        "(0351) 555-1234"   → "5493515551234"
     """
-    digits = re.sub(r"\D", "", raw or "")
+    if not raw:
+        raise ValueError("phone vacío")
+    raw_stripped = raw.strip()
+    explicit_intl = raw_stripped.startswith("+")
+    digits = re.sub(r"\D", "", raw_stripped)
     if not digits:
         raise ValueError("phone vacío")
 
+    if explicit_intl:
+        # El usuario ya nos dio el código de país, no inventamos.
+        if len(digits) < 8:
+            raise ValueError(f"phone internacional demasiado corto: {digits}")
+        return digits
+
+    # Sin "+": asumimos Argentina mobile.
     digits = digits.lstrip("0")  # 0351... → 351...
 
     if not digits.startswith("54"):
