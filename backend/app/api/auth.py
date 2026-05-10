@@ -18,6 +18,7 @@ class MerchantPatch(BaseModel):
     business_name: str | None = Field(default=None, max_length=255)
     whatsapp_phone: str | None = Field(default=None, max_length=32)
     currency: str | None = Field(default=None, max_length=8)
+    shopify_trigger_every_n_orders: int | None = Field(default=None, ge=1, le=1000)
 
 
 @router.get("/me", response_model=MerchantOut)
@@ -45,6 +46,8 @@ async def patch_me(
         merchant.whatsapp_phone = body.whatsapp_phone.strip() or None
     if body.currency is not None:
         merchant.currency = body.currency.strip().upper()
+    if body.shopify_trigger_every_n_orders is not None:
+        merchant.shopify_trigger_every_n_orders = body.shopify_trigger_every_n_orders
     await db.commit()
     await db.refresh(merchant)
     return merchant

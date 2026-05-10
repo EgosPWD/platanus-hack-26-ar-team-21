@@ -7,7 +7,7 @@ porque cada nodo va llenando los suyos.
 from typing import Any, Literal, TypedDict
 from uuid import UUID
 
-Trigger = Literal["manual", "scheduled"]
+Trigger = Literal["manual", "scheduled", "shopify_order"]
 Decision = Literal["propose", "skip"]
 
 

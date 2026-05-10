@@ -69,6 +69,7 @@ export type Merchant = {
   business_name: string;
   whatsapp_phone: string | null;
   currency: string;
+  shopify_trigger_every_n_orders: number;
   created_at: string;
 };
 
@@ -222,8 +223,12 @@ export type Campaign = {
 
 export const api = {
   me: () => apiFetch<Merchant>("/me"),
-  patchMe: (body: { business_name?: string; whatsapp_phone?: string; currency?: string }) =>
-    apiFetch<Merchant>("/me", { method: "PATCH", body }),
+  patchMe: (body: {
+    business_name?: string;
+    whatsapp_phone?: string;
+    currency?: string;
+    shopify_trigger_every_n_orders?: number;
+  }) => apiFetch<Merchant>("/me", { method: "PATCH", body }),
   getProducts: () => apiFetch<Product[]>("/products"),
   getSalesSummary: (days = 7) =>
     apiFetch<SalesSummary>(`/sales/summary?days=${days}`),

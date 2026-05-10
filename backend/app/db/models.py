@@ -48,6 +48,11 @@ class Merchant(Base):
     meta_ad_account_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     meta_access_token: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Cuántas ventas nuevas (desde el último AgentRun) activan el trigger automático.
+    shopify_trigger_every_n_orders: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=10, server_default="10"
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

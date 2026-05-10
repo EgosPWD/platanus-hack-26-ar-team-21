@@ -10,6 +10,7 @@ from app.api import campaigns as campaigns_router
 from app.api import products as products_router
 from app.api import proposals as proposals_router
 from app.api import sales as sales_router
+from app.api import webhooks as webhooks_router
 from app.core.config import settings
 
 logger = logging.getLogger("vera")
@@ -153,3 +154,4 @@ app.include_router(proposals_router.runs_router)
 app.include_router(proposals_router.notifications_router)
 app.include_router(campaigns_router.router)
 app.include_router(campaigns_router.proposals_campaign_router)
+app.include_router(webhooks_router.router)

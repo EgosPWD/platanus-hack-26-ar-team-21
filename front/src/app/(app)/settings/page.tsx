@@ -12,6 +12,7 @@ export default function SettingsPage() {
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [triggerEveryN, setTriggerEveryN] = useState("10");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -25,6 +26,7 @@ export default function SettingsPage() {
         setMerchant(m);
         setName(m.business_name ?? "");
         setPhone(m.whatsapp_phone ?? "");
+        setTriggerEveryN(String(m.shopify_trigger_every_n_orders ?? 10));
       })
       .catch((err) => {
         if (cancelled) return;
@@ -45,9 +47,11 @@ export default function SettingsPage() {
     setError(null);
     setToast(null);
     try {
+      const n = parseInt(triggerEveryN, 10);
       const updated = await api.patchMe({
         business_name: name,
         whatsapp_phone: phone,
+        shopify_trigger_every_n_orders: Number.isFinite(n) && n >= 1 ? n : undefined,
       });
       setMerchant(updated);
       setToast("Listo, guardado.");
@@ -104,6 +108,25 @@ export default function SettingsPage() {
             />
             <span className="font-mono text-[10px] text-muted-foreground">
               Acá te aviso cuando arme una propuesta. Formato internacional.
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="triggerEveryN">Activar Vera cada… ventas</Label>
+            <div className="flex items-center gap-3">
+              <Input
+                id="triggerEveryN"
+                type="number"
+                min={1}
+                max={1000}
+                value={triggerEveryN}
+                onChange={(e) => setTriggerEveryN(e.target.value)}
+                className="w-28"
+              />
+              <span className="text-sm text-muted-foreground">ventas nuevas</span>
+            </div>
+            <span className="font-mono text-[10px] text-muted-foreground">
+              Cuando recibo este número de pedidos de Shopify desde la última propuesta, me activo sola.
             </span>
           </div>
 

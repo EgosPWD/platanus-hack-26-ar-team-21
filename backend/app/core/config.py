@@ -93,6 +93,10 @@ class Settings(BaseSettings):
     AGENT_COOLDOWN_DAYS: int = 3
     AGENT_DEFAULT_BUDGET_ARS: int = 10000
 
+    # Trigger automático: cantidad de ventas nuevas (desde el último AgentRun)
+    # que activan a Vera automáticamente vía webhook de Shopify.
+    SHOPIFY_TRIGGER_EVERY_N_ORDERS: int = 10
+
     ENV: Literal["development", "staging", "production"] = "development"
 
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]

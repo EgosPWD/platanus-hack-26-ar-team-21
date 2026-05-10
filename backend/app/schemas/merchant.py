@@ -12,4 +12,5 @@ class MerchantOut(BaseModel):
     business_name: str
     whatsapp_phone: str | None
     currency: str
+    shopify_trigger_every_n_orders: int
     created_at: datetime
