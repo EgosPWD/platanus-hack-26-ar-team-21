@@ -251,10 +251,8 @@ class MetaPublisher(Publisher):
 
         if settings.META_SKIP_AD_CREATION_IF_DEV_MODE:
             ads_pending_reason = (
-                "Tu app de Meta está en Development. La campaña con "
-                "su targeting y presupuesto ya está creada en Ads "
-                "Manager. Los 5 ads se publican cuando tu Business "
-                "pase verificación y la app vaya a Live."
+                "Campaña creada. Los ads se publicarán automáticamente "
+                "cuando pases a Live."
             )
             logger.warning(
                 "publisher | META_SKIP_AD_CREATION_IF_DEV_MODE=true — "
