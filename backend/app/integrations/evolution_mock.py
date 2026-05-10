@@ -25,7 +25,7 @@ class EvolutionClient:
     ) -> None:
         self.instance_name = instance_name or "mock"
 
-    async def __aenter__(self) -> "EvolutionClient":
+    async def __aenter__(self) -> EvolutionClient:
         return self
 
     async def __aexit__(self, *exc: object) -> None:
@@ -36,6 +36,14 @@ class EvolutionClient:
 
     async def ping(self) -> bool:
         return True
+
+    async def diagnose_connection(self) -> dict[str, Any]:
+        return {
+            "connected": True,
+            "state": "mock",
+            "status_code": 200,
+            "error": None,
+        }
 
     async def send_text(self, to_number: str, text: str) -> dict[str, Any]:
         logger.info("[WHATSAPP MOCK -> %s]\n%s\n", to_number, text)

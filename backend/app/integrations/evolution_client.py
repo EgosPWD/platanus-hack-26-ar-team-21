@@ -95,7 +95,7 @@ class EvolutionClient:
             timeout=timeout,
         )
 
-    async def __aenter__(self) -> "EvolutionClient":
+    async def __aenter__(self) -> EvolutionClient:
         return self
 
     async def __aexit__(self, *exc: object) -> None:
@@ -105,31 +105,55 @@ class EvolutionClient:
         await self._client.aclose()
 
     async def ping(self) -> bool:
+        diagnostics = await self.diagnose_connection()
+        return bool(diagnostics["connected"])
+
+    async def diagnose_connection(self) -> dict[str, Any]:
         try:
             response = await self._client.get(
                 f"/instance/connectionState/{self.instance_name}"
             )
         except httpx.HTTPError as exc:
             logger.warning("Evolution ping HTTP error: %s", exc)
-            return False
+            return {
+                "connected": False,
+                "state": None,
+                "status_code": None,
+                "error": f"{exc.__class__.__name__}: {exc}",
+            }
         if response.status_code != 200:
             logger.warning(
                 "Evolution ping non-200: %d %s",
                 response.status_code,
                 response.text[:200],
             )
-            return False
+            return {
+                "connected": False,
+                "state": None,
+                "status_code": response.status_code,
+                "error": response.text[:300],
+            }
         try:
             data = response.json()
-        except Exception:
-            return False
+        except Exception as exc:
+            return {
+                "connected": False,
+                "state": None,
+                "status_code": response.status_code,
+                "error": f"Respuesta no JSON: {exc}",
+            }
         # La forma del payload varía entre versiones — chequeamos varias rutas.
         state = (
             (data.get("instance") or {}).get("state")
             or data.get("state")
             or ""
         )
-        return str(state).lower() == "open"
+        return {
+            "connected": str(state).lower() == "open",
+            "state": str(state) if state else None,
+            "status_code": response.status_code,
+            "error": None,
+        }
 
     async def send_text(self, to_number: str, text: str) -> dict[str, Any]:
         normalized = normalize_phone(to_number)

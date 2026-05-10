@@ -1,5 +1,6 @@
 import logging
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -84,13 +85,63 @@ app.add_middleware(
 )
 
 
+async def _whatsapp_health() -> dict[str, Any]:
+    configured = bool(
+        settings.EVOLUTION_API_URL
+        and settings.EVOLUTION_API_KEY
+        and settings.EVOLUTION_INSTANCE_NAME
+    )
+    result: dict[str, Any] = {
+        "mock": settings.USE_WHATSAPP_MOCK,
+        "configured": configured,
+        "api_url": settings.EVOLUTION_API_URL or None,
+        "api_key_configured": bool(settings.EVOLUTION_API_KEY),
+        "instance_name": settings.EVOLUTION_INSTANCE_NAME or None,
+        "from_number_configured": bool(settings.EVOLUTION_FROM_NUMBER),
+        "connected": None,
+        "state": None,
+        "status_code": None,
+        "error": None,
+    }
+
+    if settings.USE_WHATSAPP_MOCK:
+        from app.integrations.evolution_mock import EvolutionClient
+
+        async with EvolutionClient(timeout=3.0) as client:
+            result.update(await client.diagnose_connection())
+        return result
+
+    if not configured:
+        result["connected"] = False
+        result["error"] = "Faltan EVOLUTION_API_URL, EVOLUTION_API_KEY o EVOLUTION_INSTANCE_NAME"
+        return result
+
+    try:
+        from app.integrations.evolution_client import EvolutionClient
+
+        async with EvolutionClient(
+            api_url=settings.EVOLUTION_API_URL,
+            api_key=settings.EVOLUTION_API_KEY,
+            instance_name=settings.EVOLUTION_INSTANCE_NAME,
+            timeout=3.0,
+        ) as client:
+            result.update(await client.diagnose_connection())
+    except Exception as exc:
+        result["connected"] = False
+        result["error"] = f"{exc.__class__.__name__}: {exc}"
+
+    return result
+
+
 @app.get("/health", tags=["meta"])
-async def health() -> dict[str, str | bool]:
+async def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "shopify_mock": settings.USE_SHOPIFY_MOCK,
         "meta_mock": settings.USE_META_MOCK,
         "replicate_mock": settings.USE_REPLICATE_MOCK,
+        "whatsapp_mock": settings.USE_WHATSAPP_MOCK,
+        "whatsapp": await _whatsapp_health(),
     }
 
 
