@@ -15,7 +15,7 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from fastapi import APIRouter, Header, HTTPException, Request, status
+from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 
 from app.agent.graph import run_vera
@@ -23,6 +23,7 @@ from app.core.config import settings
 from app.core.deps import DbSession
 from app.db.models import AgentRun, Merchant, Product, Sale
 from app.db.session import async_session_factory
+from app.services.whatsapp_inbound import handle_incoming_whatsapp
 
 logger = logging.getLogger("vera.webhooks")
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
@@ -177,3 +178,34 @@ async def shopify_order_webhook(
         asyncio.create_task(_run_vera_background(merchant.id))
 
     return {"status": "ok", "sales_since_last_run": sales_since_last_run, "threshold": threshold}
+
+
+@router.post("/whatsapp/evolution", status_code=status.HTTP_200_OK)
+async def whatsapp_evolution_webhook(
+    request: Request,
+    db: DbSession,
+    x_vera_whatsapp_secret: str = Header(default=""),
+    secret: str = Query(default=""),
+) -> dict:
+    """Recibe mensajes entrantes de Evolution y ejecuta acciones sobre propuestas.
+
+    Configurá Evolution para apuntar MESSAGE_UPSERT/MESSAGES_UPSERT a:
+    /webhooks/whatsapp/evolution. Si `WHATSAPP_WEBHOOK_SECRET` está seteado,
+    mandalo como header `X-Vera-Whatsapp-Secret` o query `?secret=...`.
+    """
+    if settings.WHATSAPP_WEBHOOK_SECRET:
+        provided = x_vera_whatsapp_secret or secret
+        if not hmac_mod.compare_digest(provided, settings.WHATSAPP_WEBHOOK_SECRET):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="WhatsApp webhook secret inválido",
+            )
+
+    try:
+        payload = await request.json()
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="JSON inválido") from exc
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Payload inválido")
+
+    return await handle_incoming_whatsapp(db, payload)

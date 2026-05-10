@@ -285,7 +285,7 @@ async def retry_campaign(
 
     # Disparar la creación en background. Reusamos exactamente la misma lógica
     # que el approve original — el publisher persiste su propia Campaign nueva.
-    from app.api.proposals import _safe_publish_to_meta  # evita ciclo de import
+    from app.services.proposal_actions import _safe_publish_to_meta
 
     asyncio.create_task(_safe_publish_to_meta(proposal.id))
 

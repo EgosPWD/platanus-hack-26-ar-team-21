@@ -75,6 +75,7 @@ class Settings(BaseSettings):
     EVOLUTION_API_KEY: str = ""
     EVOLUTION_INSTANCE_NAME: str = "Vera"
     EVOLUTION_FROM_NUMBER: str = ""
+    WHATSAPP_WEBHOOK_SECRET: str = ""
 
     # URL pública del frontend (para armar links en mensajes de WhatsApp)
     FRONTEND_BASE_URL: str = "http://localhost:3000"

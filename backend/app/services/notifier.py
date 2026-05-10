@@ -304,6 +304,22 @@ async def notify_publication_failed(
     )
 
 
+async def notify_whatsapp_reply(
+    *,
+    merchant: Merchant,
+    proposal: Proposal | None,
+    message: str,
+    kind: str = "whatsapp_reply",
+) -> Notification:
+    """Envía una respuesta transaccional al merchant por el mismo canal."""
+    return await _send_and_persist(
+        merchant=merchant,
+        proposal=proposal,
+        kind=kind,
+        message=message,
+    )
+
+
 # Heurística simple para decidir si vale la pena despertar al merchant. Solo
 # avisamos cuando la causa es algo que el merchant entendería ("token venció",
 # "datos de la campaña son inválidos") y no algo técnico interno.

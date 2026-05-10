@@ -8,7 +8,7 @@ from sqlalchemy import desc, select
 
 from app.agent.graph import run_vera
 from app.core.deps import CurrentMerchant, DbSession
-from app.db.models import AgentRun, Campaign, Notification, Product, Proposal, ProposalStatus
+from app.db.models import AgentRun, Notification, Product, Proposal, ProposalStatus
 from app.schemas.notifications import NotificationRead
 from app.schemas.proposals import (
     AgentRunRead,
@@ -24,12 +24,13 @@ from app.services.image_gen import (
     init_assets_for_proposal,
     run_creative_generation,
 )
-from app.services.notifier import (
-    is_user_actionable_error,
-    notify_campaign_created,
-    notify_proposal_approved,
-    notify_proposal_rejected,
-    notify_publication_failed,
+from app.services.proposal_actions import (
+    approve_proposal_for_merchant,
+    attach_decision_notes,
+    ensure_decidable,
+    load_proposal_with_product,
+    modify_proposal_for_merchant,
+    reject_proposal_for_merchant,
 )
 
 logger = logging.getLogger("vera.api.proposals")
@@ -58,22 +59,7 @@ def _serialize_proposal(p: Proposal, product: Product | None) -> ProposalRead:
 async def _load_proposal_with_product(
     db, merchant_id: uuid.UUID, proposal_id: uuid.UUID
 ) -> tuple[Proposal | None, Product | None]:
-    proposal = (
-        await db.execute(
-            select(Proposal).where(
-                Proposal.id == proposal_id,
-                Proposal.merchant_id == merchant_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if proposal is None:
-        return None, None
-    product = None
-    if proposal.product_id:
-        product = (
-            await db.execute(select(Product).where(Product.id == proposal.product_id))
-        ).scalar_one_or_none()
-    return proposal, product
+    return await load_proposal_with_product(db, merchant_id, proposal_id)
 
 
 @router.post("/run", response_model=AgentRunResult)
@@ -230,19 +216,11 @@ async def regenerate_creatives(
 
 def _ensure_decidable(proposal: Proposal) -> None:
     """Aprobar/rechazar solo aplica a propuestas pending o modified."""
-    if proposal.status not in (ProposalStatus.pending, ProposalStatus.modified):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"La propuesta ya está {proposal.status.value}",
-        )
+    ensure_decidable(proposal)
 
 
 def _attach_decision_notes(proposal: Proposal, notes: str | None) -> None:
-    if not notes:
-        return
-    payload = dict(proposal.payload or {})
-    payload["decision_notes"] = notes
-    proposal.payload = payload
+    attach_decision_notes(proposal, notes)
 
 
 @router.post("/{proposal_id}/approve", response_model=ProposalRead)
@@ -252,22 +230,12 @@ async def approve_proposal(
     merchant: CurrentMerchant,
     db: DbSession,
 ) -> ProposalRead:
-    proposal, product = await _load_proposal_with_product(db, merchant.id, proposal_id)
-    if proposal is None:
-        raise HTTPException(status_code=404, detail="Propuesta no encontrada")
-    _ensure_decidable(proposal)
-
-    proposal.status = ProposalStatus.approved
-    proposal.decided_at = datetime.now(timezone.utc)
-    _attach_decision_notes(proposal, body.notes)
-    await db.commit()
-    await db.refresh(proposal)
-
-    asyncio.create_task(_safe_notify(notify_proposal_approved, proposal_id))
-    # Capa 6: disparo en background la creación de la campaña en Meta.
-    # No bloqueamos la respuesta — el usuario ve el banner verde de aprobación
-    # inmediato y la campaña aparece en /campaigns en 30-90s.
-    asyncio.create_task(_safe_publish_to_meta(proposal_id))
+    proposal, product = await approve_proposal_for_merchant(
+        db,
+        merchant_id=merchant.id,
+        proposal_id=proposal_id,
+        notes=body.notes,
+    )
     return _serialize_proposal(proposal, product)
 
 
@@ -278,18 +246,12 @@ async def reject_proposal(
     merchant: CurrentMerchant,
     db: DbSession,
 ) -> ProposalRead:
-    proposal, product = await _load_proposal_with_product(db, merchant.id, proposal_id)
-    if proposal is None:
-        raise HTTPException(status_code=404, detail="Propuesta no encontrada")
-    _ensure_decidable(proposal)
-
-    proposal.status = ProposalStatus.rejected
-    proposal.decided_at = datetime.now(timezone.utc)
-    _attach_decision_notes(proposal, body.notes)
-    await db.commit()
-    await db.refresh(proposal)
-
-    asyncio.create_task(_safe_notify(notify_proposal_rejected, proposal_id))
+    proposal, product = await reject_proposal_for_merchant(
+        db,
+        merchant_id=merchant.id,
+        proposal_id=proposal_id,
+        notes=body.notes,
+    )
     return _serialize_proposal(proposal, product)
 
 
@@ -301,105 +263,14 @@ async def modify_proposal(
     db: DbSession,
 ) -> ProposalRead:
     """Permite editar copy/budget/audience del payload sin notificar."""
-    proposal, product = await _load_proposal_with_product(db, merchant.id, proposal_id)
-    if proposal is None:
-        raise HTTPException(status_code=404, detail="Propuesta no encontrada")
-    if proposal.status not in (ProposalStatus.pending, ProposalStatus.modified):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"No puedo modificar una propuesta {proposal.status.value}",
-        )
-
     changes = body.whitelisted()
-    if not changes:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No hay campos válidos para modificar",
-        )
-
-    payload = dict(proposal.payload or {})
-    payload.update(changes)
-    proposal.payload = payload
-    proposal.status = ProposalStatus.modified
-    proposal.decided_at = datetime.now(timezone.utc)
-    await db.commit()
-    await db.refresh(proposal)
+    proposal, product = await modify_proposal_for_merchant(
+        db,
+        merchant_id=merchant.id,
+        proposal_id=proposal_id,
+        changes=changes,
+    )
     return _serialize_proposal(proposal, product)
-
-
-async def _safe_notify(fn, proposal_id: uuid.UUID) -> None:
-    try:
-        await fn(proposal_id)
-    except Exception:
-        logger.exception("notification %s failed for proposal=%s", fn.__name__, proposal_id)
-
-
-async def _safe_publish_to_meta(proposal_id: uuid.UUID) -> None:
-    """Background task que crea la campaña en Meta Ads tras la aprobación.
-
-    Nunca debe propagar excepciones — todo error termina como Campaign
-    `failed` (lo persiste el publisher) y, si es accionable, una
-    notificación al merchant.
-    """
-    from app.core.config import settings as _settings
-    from app.db.session import async_session_factory
-    from app.integrations import MetaAdsClient
-    from app.publishers.meta import MetaPublisher
-    from app.publishers.meta_mock import MetaMockPublisher
-
-    try:
-        async with async_session_factory() as db:
-            proposal = await db.get(Proposal, proposal_id)
-            if proposal is None:
-                logger.warning("publish_to_meta | proposal %s no existe", proposal_id)
-                return
-
-            if _settings.USE_META_MOCK:
-                client = MetaAdsClient()
-                publisher: MetaPublisher = MetaMockPublisher(client)
-            else:
-                client = MetaAdsClient(
-                    access_token=_settings.META_ACCESS_TOKEN,
-                    ad_account_id=_settings.META_AD_ACCOUNT_ID,
-                    api_version=_settings.META_API_VERSION,
-                )
-                publisher = MetaPublisher(client)
-
-            result = await publisher.publish(proposal, db)
-
-        if result.success:
-            async with async_session_factory() as db:
-                row = (
-                    await db.execute(
-                        select(Campaign)
-                        .where(Campaign.proposal_id == proposal_id)
-                        .order_by(desc(Campaign.created_at))
-                        .limit(1)
-                    )
-                ).scalar_one_or_none()
-            if row is not None:
-                try:
-                    await notify_campaign_created(row.id)
-                except Exception:
-                    logger.exception(
-                        "notify_campaign_created crashed campaign=%s", row.id
-                    )
-        else:
-            logger.warning(
-                "publish_to_meta | proposal=%s failed: %s",
-                proposal_id,
-                result.error,
-            )
-            if is_user_actionable_error(result.error):
-                try:
-                    await notify_publication_failed(proposal_id, result.error or "")
-                except Exception:
-                    logger.exception(
-                        "notify_publication_failed crashed for proposal=%s",
-                        proposal_id,
-                    )
-    except Exception:
-        logger.exception("publish_to_meta crashed for proposal=%s", proposal_id)
 
 
 # Endpoint legacy — mantenido para compat hasta que se migre todo.
