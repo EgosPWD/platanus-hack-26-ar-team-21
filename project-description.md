@@ -1,0 +1,31 @@
+# Verenice
+
+**El equipo de marketing autónomo que cualquier microemprendedor latinoamericano puede pagar.**
+
+Verenice es un agente de IA que reemplaza al equipo de marketing que los microemprendedores latinoamericanos no pueden pagar.
+
+Se conecta al Shopify del comercio, lee las ventas reales en vivo, detecta qué producto está creciendo y arma una campaña completa de Meta Ads en menos de dos minutos:
+
+- Genera cinco creatividades editando las fotos reales del catálogo.
+- Escribe el copy en español.
+- Define audiencia y presupuesto.
+- Pide aprobación al dueño del negocio por WhatsApp antes de publicar nada.
+
+Verenice nunca actúa sin aprobación humana: la campaña se crea en Meta en estado pausado y el último click de activación lo da siempre el merchant.
+
+El producto resuelve un mercado de veinte millones de microemprendedores en Latinoamérica que hoy quedan fuera de la publicidad digital porque un equipo tradicional —fotógrafo, diseñador, community manager y media buyer— cuesta dos mil dólares al mes. Verenice cuesta treinta.
+
+## Stack
+
+- Next.js 15
+- FastAPI
+- LangGraph con Claude Sonnet 4.6 para el reasoning del agente
+- Gemini Image vía OpenRouter para generación image-to-image preservando el producto real
+- Evolution API para WhatsApp
+- Meta Marketing API para publicación de campañas
+- Supabase para auth y storage
+- Shopify Admin API para sincronización de catálogo y ventas
+
+## Producción
+
+https://verenice.online
