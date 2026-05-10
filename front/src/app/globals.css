@@ -2,20 +2,69 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --accent-glow: rgba(14, 165, 164, 0.15);
+  --line: rgba(15, 23, 42, 0.08);
+  --line-strong: rgba(15, 23, 42, 0.16);
+}
+
+/* Lenis smooth scroll — recommended bootstrap */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+.lenis.lenis-scrolling iframe {
+  pointer-events: none;
+}
+
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   body {
-    @apply bg-bg font-sans text-ink;
+    @apply bg-bg font-sans text-ink antialiased;
   }
 
   h1,
   h2,
-  h3 {
-    @apply font-serif tracking-tight;
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-sans tracking-tight text-ink;
+    font-weight: 500;
+  }
+
+  *:focus-visible {
+    @apply outline-none ring-2 ring-accent/40 ring-offset-2 ring-offset-bg;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(15, 23, 42, 0.12);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(15, 23, 42, 0.22);
+    background-clip: padding-box;
+    border: 2px solid transparent;
   }
 }
 
@@ -23,4 +72,27 @@
   .text-balance {
     text-wrap: balance;
   }
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      rgba(15, 23, 42, 0.04) 0%,
+      rgba(15, 23, 42, 0.08) 50%,
+      rgba(15, 23, 42, 0.04) 100%
+    );
+    background-size: 200% 100%;
+    @apply animate-shimmer rounded-md;
+  }
+
+  .stagger-1 { animation-delay: 60ms; }
+  .stagger-2 { animation-delay: 120ms; }
+  .stagger-3 { animation-delay: 180ms; }
+  .stagger-4 { animation-delay: 240ms; }
+  .stagger-5 { animation-delay: 300ms; }
+  .stagger-6 { animation-delay: 360ms; }
+  .stagger-7 { animation-delay: 420ms; }
+  .stagger-8 { animation-delay: 480ms; }
 }

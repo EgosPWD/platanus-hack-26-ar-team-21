@@ -1,10 +1,15 @@
 "use client";
 
-import { Check, Loader2, Sparkles, X } from "lucide-react";
+import { Loader2, Search, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
-import { ProposalCard } from "@/components/proposals/ProposalCard";
+import { ProposalCardCompact } from "@/components/proposals/ProposalCardCompact";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs } from "@/components/ui/tabs";
 import {
   ApiError,
   api,
@@ -12,27 +17,31 @@ import {
   type Proposal,
   type ProposalStatus,
 } from "@/lib/api";
-import { cn } from "@/lib/utils";
 
-type TabKey = "pending" | "approved" | "rejected" | "all";
+type TabKey = "pending" | "approved" | "rejected" | "modified" | "all";
 
 const TABS: { key: TabKey; label: string; statuses: ProposalStatus[] | null }[] = [
-  { key: "pending", label: "Pendientes", statuses: ["pending", "modified"] },
+  { key: "pending", label: "Pendientes", statuses: ["pending"] },
+  { key: "modified", label: "Modificadas", statuses: ["modified"] },
   { key: "approved", label: "Aprobadas", statuses: ["approved"] },
   { key: "rejected", label: "Rechazadas", statuses: ["rejected"] },
   { key: "all", label: "Todas", statuses: null },
 ];
 
+const SORTS = [
+  { key: "recent", label: "Más recientes" },
+  { key: "old", label: "Más antiguas" },
+] as const;
+
+type SortKey = (typeof SORTS)[number]["key"];
+
 export default function ProposalsPage() {
   const [proposals, setProposals] = useState<Proposal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
-  const [lastRun, setLastRun] = useState<AgentRunResult | null>(null);
   const [tab, setTab] = useState<TabKey>("pending");
-  const [decisionFeedback, setDecisionFeedback] = useState<{
-    kind: "approved" | "rejected" | "modified";
-    productName: string;
-  } | null>(null);
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<SortKey>("recent");
 
   const load = useCallback(async () => {
     setError(null);
@@ -40,11 +49,11 @@ export default function ProposalsPage() {
       const data = await api.getProposals();
       setProposals(data);
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(`No pude cargar las propuestas (HTTP ${err.status}).`);
-      } else {
-        setError("No pude cargar las propuestas.");
-      }
+      setError(
+        err instanceof ApiError
+          ? `No pude cargar las propuestas (HTTP ${err.status}).`
+          : "No pude cargar las propuestas.",
+      );
     }
   }, []);
 
@@ -54,51 +63,40 @@ export default function ProposalsPage() {
 
   const handleRun = async () => {
     setRunning(true);
-    setError(null);
     try {
-      const result = await api.runAgent();
-      setLastRun(result);
+      const result: AgentRunResult = await api.runAgent();
+      if (result.decision === "skip") {
+        toast(`Vera: ${result.decision_reason}`);
+      } else {
+        toast.success(
+          result.proposal?.product?.name
+            ? `Vera te propuso amplificar ${result.proposal.product.name}.`
+            : "Vera armó una propuesta nueva.",
+        );
+      }
       await load();
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(`Vera tuvo un problema (HTTP ${err.status}).`);
-      } else {
-        setError("Vera tuvo un problema.");
-      }
+      toast.error(
+        err instanceof ApiError
+          ? `Vera tuvo un problema (HTTP ${err.status}).`
+          : "Vera tuvo un problema.",
+      );
     } finally {
       setRunning(false);
     }
   };
-
-  const updateOne = (updated: Proposal) => {
-    setProposals((prev) =>
-      prev ? prev.map((p) => (p.id === updated.id ? updated : p)) : prev,
-    );
-    if (updated.status === "approved" || updated.status === "rejected" || updated.status === "modified") {
-      setDecisionFeedback({
-        kind: updated.status,
-        productName: updated.product?.name ?? "la propuesta",
-      });
-      // Refetch para asegurar que la UI quede sincronizada con el backend.
-      void load();
-    }
-  };
-
-  useEffect(() => {
-    if (!decisionFeedback) return;
-    const id = setTimeout(() => setDecisionFeedback(null), 6000);
-    return () => clearTimeout(id);
-  }, [decisionFeedback]);
 
   const counts = useMemo(() => {
     const c: Record<TabKey, number> = {
       pending: 0,
       approved: 0,
       rejected: 0,
+      modified: 0,
       all: proposals?.length ?? 0,
     };
     for (const p of proposals ?? []) {
-      if (p.status === "pending" || p.status === "modified") c.pending += 1;
+      if (p.status === "pending") c.pending += 1;
+      else if (p.status === "modified") c.modified += 1;
       else if (p.status === "approved") c.approved += 1;
       else if (p.status === "rejected") c.rejected += 1;
     }
@@ -108,149 +106,140 @@ export default function ProposalsPage() {
   const filtered = useMemo(() => {
     if (!proposals) return null;
     const def = TABS.find((t) => t.key === tab);
-    if (!def || def.statuses === null) return proposals;
-    return proposals.filter((p) => def.statuses!.includes(p.status));
-  }, [proposals, tab]);
+    let res = proposals;
+    if (def?.statuses) res = res.filter((p) => def.statuses!.includes(p.status));
+    const q = search.trim().toLowerCase();
+    if (q) {
+      res = res.filter((p) => p.product?.name?.toLowerCase().includes(q));
+    }
+    res = [...res].sort((a, b) => {
+      const da = new Date(a.created_at).getTime();
+      const db = new Date(b.created_at).getTime();
+      return sort === "recent" ? db - da : da - db;
+    });
+    return res;
+  }, [proposals, tab, search, sort]);
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end md:justify-between">
+      {/* Header */}
+      <header className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div className="flex flex-col gap-2">
-          <span className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">
+          <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-mute">
             Propuestas
           </span>
-          <h1 className="font-serif text-3xl leading-tight text-ink sm:text-4xl md:text-5xl">
-            Propuestas de Vera
+          <h1 className="text-3xl font-medium leading-tight text-ink sm:text-4xl">
+            Lo que Vera te está sugiriendo
           </h1>
+          <p className="max-w-xl text-sm text-ink-soft">
+            Revisá, aprobá, modificá o rechazá las ideas que Vera arma a partir de tus
+            ventas reales.
+          </p>
         </div>
         <Button onClick={handleRun} disabled={running} className="w-full md:w-auto">
           {running ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              <span className="truncate">Vera está analizando…</span>
+              Vera está mirando…
             </>
           ) : (
             <>
-              <Sparkles className="mr-2 h-4 w-4 shrink-0" strokeWidth={1.8} />
-              <span className="truncate">Pedirle a Vera que analice ahora</span>
+              <Sparkles className="mr-2 h-4 w-4" strokeWidth={1.8} />
+              Pedirle que mire ahora
             </>
           )}
         </Button>
+      </header>
+
+      <Tabs<TabKey>
+        tabs={TABS.map((t) => ({ key: t.key, label: t.label, count: counts[t.key] }))}
+        value={tab}
+        onChange={setTab}
+      />
+
+      {/* Filtros */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full max-w-sm">
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-mute"
+            strokeWidth={1.8}
+          />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por producto…"
+            className="pl-9"
+            aria-label="Buscar propuestas por producto"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-mute">
+            Orden
+          </span>
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SortKey)}
+            className="h-9 rounded-xl border border-line bg-bg-card px-3 text-sm font-medium text-ink hover:border-ink/20 focus-visible:border-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/20"
+          >
+            {SORTS.map((s) => (
+              <option key={s.key} value={s.key}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      <nav className="-mx-4 flex gap-1 overflow-x-auto border-b border-border px-4 sm:mx-0 sm:flex-wrap sm:px-0">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={cn(
-              "-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2 font-mono text-xs uppercase tracking-wider transition-colors sm:px-4",
-              tab === t.key
-                ? "border-accent text-ink"
-                : "border-transparent text-muted-foreground hover:text-ink",
-            )}
-          >
-            {t.label}
-            <span className="ml-2 font-mono text-[10px] text-muted-foreground">
-              ({counts[t.key]})
-            </span>
-          </button>
-        ))}
-      </nav>
-
-      {error && <p className="font-mono text-sm text-accent">{error}</p>}
-
-      {decisionFeedback && (
-        <div
-          className={cn(
-            "flex items-start gap-3 rounded-lg border p-4",
-            decisionFeedback.kind === "approved" &&
-              "border-emerald-600/30 bg-emerald-50 text-emerald-900",
-            decisionFeedback.kind === "rejected" &&
-              "border-border bg-bg text-muted-foreground",
-            decisionFeedback.kind === "modified" &&
-              "border-amber-600/30 bg-amber-50 text-amber-900",
-          )}
-        >
-          <span
-            className={cn(
-              "mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
-              decisionFeedback.kind === "approved" && "bg-emerald-600 text-white",
-              decisionFeedback.kind === "rejected" && "bg-muted text-muted-foreground",
-              decisionFeedback.kind === "modified" && "bg-amber-600 text-white",
-            )}
-          >
-            {decisionFeedback.kind === "approved" ? (
-              <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
-            ) : decisionFeedback.kind === "rejected" ? (
-              <X className="h-3.5 w-3.5" strokeWidth={2.5} />
-            ) : (
-              <Sparkles className="h-3.5 w-3.5" strokeWidth={2} />
-            )}
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="break-words font-serif text-sm leading-snug sm:text-base">
-              {decisionFeedback.kind === "approved" &&
-                `Aprobaste la propuesta para "${decisionFeedback.productName}". Ya pasó a Aprobadas y te avisé por WhatsApp.`}
-              {decisionFeedback.kind === "rejected" &&
-                `Rechazaste la propuesta para "${decisionFeedback.productName}". Voy a seguir mirando tus ventas.`}
-              {decisionFeedback.kind === "modified" &&
-                `Guardé los cambios en "${decisionFeedback.productName}". Revisala y aprobala cuando quieras.`}
-            </p>
-            {decisionFeedback.kind === "approved" && (
-              <button
-                onClick={() => setTab("approved")}
-                className="mt-1 font-mono text-[10px] uppercase tracking-wider underline-offset-2 hover:underline"
-              >
-                Ver en Aprobadas →
-              </button>
-            )}
-          </div>
-          <button
-            onClick={() => setDecisionFeedback(null)}
-            className="shrink-0 rounded-full p-1 hover:bg-black/5"
-            aria-label="Cerrar"
-          >
-            <X className="h-3.5 w-3.5" strokeWidth={2} />
-          </button>
-        </div>
+      {error && (
+        <p className="rounded-xl border border-danger/20 bg-danger/5 px-4 py-3 text-sm text-danger">
+          {error}
+        </p>
       )}
 
-      {lastRun && lastRun.decision === "skip" && (
-        <div className="rounded-lg border border-border bg-bg p-5">
-          <div className="mb-2 flex items-center gap-2">
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent/10 text-accent">
-              <Sparkles className="h-3.5 w-3.5" strokeWidth={1.8} />
-            </span>
-            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-              Vera
-            </span>
-          </div>
-          <p className="font-serif text-lg leading-relaxed text-ink">
-            &ldquo;{lastRun.decision_reason}&rdquo;
-          </p>
-        </div>
-      )}
-
+      {/* Grid */}
       {filtered === null ? (
-        <p className="text-muted-foreground">Cargando…</p>
-      ) : filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border bg-white p-12 text-center">
-          <p className="font-serif text-2xl text-ink">
-            {tab === "pending"
-              ? "Vera todavía no tiene propuestas pendientes."
-              : `No hay propuestas en "${TABS.find((t) => t.key === tab)?.label}".`}
-          </p>
-          {tab === "pending" && (
-            <p className="mt-2 text-muted-foreground">
-              Pedile que analice tus ventas para arrancar.
-            </p>
-          )}
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} className="h-72 rounded-2xl" />
+          ))}
         </div>
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={Sparkles}
+          title={
+            tab === "pending"
+              ? "No tenés propuestas pendientes."
+              : tab === "approved"
+                ? "Todavía no aprobaste ninguna propuesta."
+                : tab === "rejected"
+                  ? "Sin rechazos. Limpio."
+                  : tab === "modified"
+                    ? "No modificaste ninguna propuesta."
+                    : "No hay propuestas todavía."
+          }
+          description={
+            tab === "pending"
+              ? "Vera te avisa cuando encuentra algo que vale la pena amplificar."
+              : "Aparecerán acá cuando empieces a moverlas."
+          }
+          action={
+            tab === "pending" && (
+              <Button onClick={handleRun} disabled={running}>
+                <Sparkles className="mr-2 h-4 w-4" strokeWidth={1.8} />
+                Pedirle que mire ahora
+              </Button>
+            )
+          }
+        />
       ) : (
-        <div className="flex flex-col gap-6">
-          {filtered.map((p) => (
-            <ProposalCard key={p.id} proposal={p} onDecided={updateOne} />
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((p, idx) => (
+            <div
+              key={p.id}
+              className={`animate-fade-up stagger-${Math.min(idx + 1, 8)}`}
+            >
+              <ProposalCardCompact proposal={p} />
+            </div>
           ))}
         </div>
       )}

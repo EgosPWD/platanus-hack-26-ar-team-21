@@ -1,26 +1,25 @@
 "use client";
 
-import { Megaphone } from "lucide-react";
+import { Megaphone, Pause } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { CampaignCard } from "@/components/campaigns/CampaignCard";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs } from "@/components/ui/tabs";
 import {
   ApiError,
   api,
   type Campaign,
   type CampaignStatus,
 } from "@/lib/api";
-import { cn } from "@/lib/utils";
 
-type TabKey = "all" | "active" | "paused" | "failed";
+type TabKey = "all" | "paused" | "active" | "failed";
 
 const TABS: { key: TabKey; label: string; statuses: CampaignStatus[] | null }[] = [
   { key: "all", label: "Todas", statuses: null },
-  // En Capa 6 las campañas reales arrancan `created` (existe en Meta, en
-  // pausa). Las agrupamos junto a las que el merchant ya pausó manualmente
-  // bajo "Pausadas" para que la UI sea simple.
-  { key: "active", label: "Activas", statuses: ["active"] },
   { key: "paused", label: "Pausadas", statuses: ["created", "paused"] },
+  { key: "active", label: "Activas", statuses: ["active"] },
   { key: "failed", label: "Fallidas", statuses: ["failed"] },
 ];
 
@@ -35,11 +34,11 @@ export default function CampaignsPage() {
       const data = await api.getCampaigns();
       setCampaigns(data);
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(`No pude cargar las campañas (HTTP ${err.status}).`);
-      } else {
-        setError("No pude cargar las campañas.");
-      }
+      setError(
+        err instanceof ApiError
+          ? `No pude cargar las campañas (HTTP ${err.status}).`
+          : "No pude cargar las campañas.",
+      );
     }
   }, []);
 
@@ -50,8 +49,8 @@ export default function CampaignsPage() {
   const counts = useMemo(() => {
     const c: Record<TabKey, number> = {
       all: campaigns?.length ?? 0,
-      active: 0,
       paused: 0,
+      active: 0,
       failed: 0,
     };
     for (const camp of campaigns ?? []) {
@@ -75,66 +74,91 @@ export default function CampaignsPage() {
     );
   };
 
+  const creating = (campaigns ?? []).find((c) => c.status === "creating");
+
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-2">
-        <span className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">
+      <header className="flex flex-col gap-2">
+        <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-mute">
           Campañas
         </span>
-        <h1 className="font-serif text-3xl leading-tight text-ink sm:text-4xl md:text-5xl">
+        <h1 className="text-3xl font-medium leading-tight text-ink sm:text-4xl">
           Tus campañas en Meta
         </h1>
+        <p className="max-w-xl text-sm text-ink-soft">
+          Vera arma todo, vos das el último paso.
+        </p>
+      </header>
+
+      {/* Banner narrativo "siempre en pausa" */}
+      <div className="flex items-start gap-3 rounded-2xl border border-accent/20 bg-accent-soft/50 px-4 py-3.5 sm:px-5">
+        <Pause className="mt-0.5 h-4 w-4 shrink-0 text-accent-deep" strokeWidth={2} />
+        <p className="text-sm text-ink">
+          <span className="font-medium">Todas las campañas se crean en pausa.</span>{" "}
+          <span className="text-ink-soft">
+            La activación final siempre la hacés vos, desde Meta Ads. Vera no toca el
+            botón de Live por su cuenta.
+          </span>
+        </p>
       </div>
 
-      <nav className="-mx-4 flex gap-1 overflow-x-auto border-b border-border px-4 sm:mx-0 sm:flex-wrap sm:px-0">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={cn(
-              "-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2 font-mono text-xs uppercase tracking-wider transition-colors sm:px-4",
-              tab === t.key
-                ? "border-accent text-ink"
-                : "border-transparent text-muted-foreground hover:text-ink",
-            )}
-          >
-            {t.label}
-            <span className="ml-2 font-mono text-[10px] text-muted-foreground">
-              ({counts[t.key]})
-            </span>
-          </button>
-        ))}
-      </nav>
+      <Tabs<TabKey>
+        tabs={TABS.map((t) => ({ key: t.key, label: t.label, count: counts[t.key] }))}
+        value={tab}
+        onChange={setTab}
+      />
 
-      {error && <p className="font-mono text-sm text-accent">{error}</p>}
+      {creating && (
+        <div className="flex items-center gap-3 rounded-2xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-yellow-800 animate-fade-in">
+          <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-warning/20 text-yellow-800">
+            <Megaphone className="h-3.5 w-3.5" strokeWidth={1.8} />
+          </span>
+          <span>
+            Vera está creando una campaña para{" "}
+            <span className="font-medium">{creating.product_name}</span>…
+          </span>
+        </div>
+      )}
+
+      {error && (
+        <p className="rounded-xl border border-danger/20 bg-danger/5 px-4 py-3 text-sm text-danger">
+          {error}
+        </p>
+      )}
 
       {filtered === null ? (
-        <p className="text-muted-foreground">Cargando…</p>
-      ) : filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border bg-white p-8 text-center sm:p-12">
-          <span className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent">
-            <Megaphone className="h-5 w-5" strokeWidth={1.8} />
-          </span>
-          <p className="font-serif text-2xl text-ink">
-            {tab === "all"
-              ? "Todavía no hay campañas."
-              : `No hay campañas en "${TABS.find((t) => t.key === tab)?.label}".`}
-          </p>
-          {tab === "all" && (
-            <p className="mt-2 text-muted-foreground">
-              Cuando aprobes tu primera propuesta, voy a crear tu primera campaña.
-            </p>
-          )}
+        <div className="flex flex-col gap-5">
+          {[0, 1].map((i) => (
+            <Skeleton key={i} className="h-56 rounded-2xl" />
+          ))}
         </div>
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={Megaphone}
+          title={
+            tab === "all"
+              ? "Todavía no hay campañas."
+              : `No hay campañas en "${TABS.find((t) => t.key === tab)?.label}".`
+          }
+          description={
+            tab === "all"
+              ? "Cuando aprobes tu primera propuesta, Vera la crea acá."
+              : undefined
+          }
+        />
       ) : (
-        <div className="flex flex-col gap-6">
-          {filtered.map((c) => (
-            <CampaignCard
+        <div className="flex flex-col gap-5">
+          {filtered.map((c, idx) => (
+            <div
               key={c.id}
-              campaign={c}
-              onUpdated={updateOne}
-              onRetried={() => void load()}
-            />
+              className={`animate-fade-up stagger-${Math.min(idx + 1, 8)}`}
+            >
+              <CampaignCard
+                campaign={c}
+                onUpdated={updateOne}
+                onRetried={() => void load()}
+              />
+            </div>
           ))}
         </div>
       )}

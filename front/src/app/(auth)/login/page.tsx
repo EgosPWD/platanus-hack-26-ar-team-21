@@ -8,7 +8,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getBrowserSupabase } from "@/lib/supabase";
@@ -20,9 +26,6 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-// useSearchParams() bailea de SSG en Next.js 15. Para que el build no
-// falle por prerender, separamos el form que lo usa y lo wrappeamos en
-// <Suspense> dentro del page export.
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -53,7 +56,7 @@ function LoginForm() {
         <Label htmlFor="email">Email</Label>
         <Input id="email" type="email" autoComplete="email" {...register("email")} />
         {errors.email && (
-          <p className="text-xs text-accent">{errors.email.message}</p>
+          <p className="text-xs text-danger">{errors.email.message}</p>
         )}
       </div>
       <div className="flex flex-col gap-2">
@@ -65,16 +68,16 @@ function LoginForm() {
           {...register("password")}
         />
         {errors.password && (
-          <p className="text-xs text-accent">{errors.password.message}</p>
+          <p className="text-xs text-danger">{errors.password.message}</p>
         )}
       </div>
-      {serverError && <p className="text-sm text-accent">{serverError}</p>}
-      <Button type="submit" disabled={isSubmitting}>
+      {serverError && <p className="text-sm text-danger">{serverError}</p>}
+      <Button type="submit" disabled={isSubmitting} size="lg">
         {isSubmitting ? "Entrando…" : "Entrar"}
       </Button>
-      <p className="text-center text-sm text-muted-foreground">
+      <p className="text-center text-sm text-ink-soft">
         ¿Sos nueva?{" "}
-        <Link href="/signup" className="text-accent hover:underline">
+        <Link href="/signup" className="font-medium text-accent-deep hover:underline">
           Creá tu cuenta
         </Link>
       </p>
@@ -84,13 +87,13 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Card>
+    <Card className="p-2">
       <CardHeader>
         <CardTitle>Hola de nuevo</CardTitle>
         <CardDescription>Entrá para ver tus propuestas.</CardDescription>
       </CardHeader>
       <CardContent>
-        <Suspense fallback={<p className="text-sm text-muted-foreground">Cargando…</p>}>
+        <Suspense fallback={<p className="text-sm text-ink-soft">Cargando…</p>}>
           <LoginForm />
         </Suspense>
       </CardContent>

@@ -8,7 +8,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getBrowserSupabase } from "@/lib/supabase";
@@ -39,7 +45,6 @@ export default function SignupPage() {
       setServerError(error.message);
       return;
     }
-    // Si Supabase no requiere verificación, ya hay sesión y vamos al dashboard.
     if (data.session) {
       router.push("/dashboard");
       router.refresh();
@@ -50,7 +55,7 @@ export default function SignupPage() {
 
   if (needsConfirmation) {
     return (
-      <Card>
+      <Card className="p-2">
         <CardHeader>
           <CardTitle>Revisá tu mail</CardTitle>
           <CardDescription>
@@ -58,7 +63,7 @@ export default function SignupPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Link href="/login" className="text-sm text-accent hover:underline">
+          <Link href="/login" className="text-sm font-medium text-accent-deep hover:underline">
             Ir al login
           </Link>
         </CardContent>
@@ -67,7 +72,7 @@ export default function SignupPage() {
   }
 
   return (
-    <Card>
+    <Card className="p-2">
       <CardHeader>
         <CardTitle>Empecemos</CardTitle>
         <CardDescription>Creá tu cuenta de Vera.</CardDescription>
@@ -78,7 +83,7 @@ export default function SignupPage() {
             <Label htmlFor="email">Email</Label>
             <Input id="email" type="email" autoComplete="email" {...register("email")} />
             {errors.email && (
-              <p className="text-xs text-accent">{errors.email.message}</p>
+              <p className="text-xs text-danger">{errors.email.message}</p>
             )}
           </div>
           <div className="flex flex-col gap-2">
@@ -90,16 +95,16 @@ export default function SignupPage() {
               {...register("password")}
             />
             {errors.password && (
-              <p className="text-xs text-accent">{errors.password.message}</p>
+              <p className="text-xs text-danger">{errors.password.message}</p>
             )}
           </div>
-          {serverError && <p className="text-sm text-accent">{serverError}</p>}
-          <Button type="submit" disabled={isSubmitting}>
+          {serverError && <p className="text-sm text-danger">{serverError}</p>}
+          <Button type="submit" disabled={isSubmitting} size="lg">
             {isSubmitting ? "Creando…" : "Crear cuenta"}
           </Button>
-          <p className="text-center text-sm text-muted-foreground">
+          <p className="text-center text-sm text-ink-soft">
             ¿Ya tenés cuenta?{" "}
-            <Link href="/login" className="text-accent hover:underline">
+            <Link href="/login" className="font-medium text-accent-deep hover:underline">
               Entrar
             </Link>
           </p>

@@ -1,11 +1,11 @@
 "use client";
 
-import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Modal } from "@/components/ui/modal";
 import { type ModificationChanges, type Proposal, api } from "@/lib/api";
 
 const COPY_MAX = 90;
@@ -30,14 +30,6 @@ export function ModifyProposalDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const onEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onEsc);
-    return () => document.removeEventListener("keydown", onEsc);
-  }, [onClose]);
-
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -57,7 +49,7 @@ export function ModifyProposalDialog({
     }
 
     if (Object.keys(changes).length === 0) {
-      setError("No cambiaste nada.");
+      setError("No cambiaste nada todavía.");
       setBusy(false);
       return;
     }
@@ -74,38 +66,22 @@ export function ModifyProposalDialog({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70 p-6"
-      onClick={onClose}
-    >
-      <form
-        onClick={(e) => e.stopPropagation()}
-        onSubmit={submit}
-        className="flex w-full max-w-lg flex-col gap-5 rounded-lg bg-white p-6"
-      >
-        <header className="flex items-start justify-between">
-          <div className="flex flex-col gap-1">
-            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-              Modificar propuesta
-            </span>
-            <h3 className="font-serif text-2xl text-ink">
-              {proposal.product?.name ?? "Sin producto"}
-            </h3>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-1 text-muted-foreground hover:bg-bg hover:text-ink"
-          >
-            <X className="h-4 w-4" strokeWidth={2} />
-          </button>
+    <Modal open onClose={onClose} ariaLabel="Modificar propuesta" size="md">
+      <form onSubmit={submit} className="flex flex-col gap-5 p-6">
+        <header className="flex flex-col gap-1 pr-8">
+          <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-ink-mute">
+            Modificar propuesta
+          </span>
+          <h3 className="text-xl font-medium text-ink">
+            {proposal.product?.name ?? "Sin producto"}
+          </h3>
         </header>
 
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <Label htmlFor="copy">Copy del anuncio</Label>
+            <Label htmlFor="copy">Copy del aviso</Label>
             <span
-              className={`font-mono text-[10px] ${copy.length > COPY_MAX ? "text-accent" : "text-muted-foreground"}`}
+              className={`font-mono text-[11px] ${copy.length > COPY_MAX ? "text-danger" : "text-ink-mute"}`}
             >
               {copy.length}/{COPY_MAX}
             </span>
@@ -116,7 +92,7 @@ export function ModifyProposalDialog({
             maxLength={140}
             onChange={(e) => setCopy(e.target.value)}
             rows={3}
-            className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"
+            className="w-full rounded-xl border border-line bg-bg-card px-4 py-2.5 text-sm text-ink shadow-[inset_0_1px_0_rgba(15,23,42,0.02)] transition-all duration-150 placeholder:text-ink-mute focus-visible:border-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/20"
           />
         </div>
 
@@ -130,7 +106,7 @@ export function ModifyProposalDialog({
         </div>
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor="budget">Presupuesto sugerido (ARS)</Label>
+          <Label htmlFor="budget">Presupuesto sugerido (ARS / día)</Label>
           <Input
             id="budget"
             type="number"
@@ -142,10 +118,14 @@ export function ModifyProposalDialog({
           />
         </div>
 
-        {error && <p className="text-sm text-accent">{error}</p>}
+        {error && (
+          <p className="rounded-xl border border-danger/20 bg-danger/5 px-3 py-2 text-sm text-danger">
+            {error}
+          </p>
+        )}
 
-        <footer className="flex items-center justify-end gap-3 pt-2">
-          <Button type="button" variant="outline" onClick={onClose} disabled={busy}>
+        <footer className="flex items-center justify-end gap-2 pt-1">
+          <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
             Cancelar
           </Button>
           <Button type="submit" disabled={busy}>
@@ -153,6 +133,6 @@ export function ModifyProposalDialog({
           </Button>
         </footer>
       </form>
-    </div>
+    </Modal>
   );
 }
