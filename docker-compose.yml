@@ -18,6 +18,7 @@ x-backend-env: &backend-env
   META_APP_SECRET: ${META_APP_SECRET:-}
   META_ACCESS_TOKEN: ${META_ACCESS_TOKEN:-}
   META_AD_ACCOUNT_ID: ${META_AD_ACCOUNT_ID:-}
+  META_PAGE_ID: ${META_PAGE_ID:-}
   EVOLUTION_API_URL: ${EVOLUTION_API_URL:-}
   EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
   EVOLUTION_INSTANCE_NAME: ${EVOLUTION_INSTANCE_NAME:-Vera}
@@ -111,4 +112,3 @@ services:
       sh -c "test -n \"$$DATABASE_URL\" || (echo 'DATABASE_URL debe estar definido en backend/.env apuntando a Supabase' >&2; exit 1);
              python -m app.db.seed"
     restart: "no"
-
