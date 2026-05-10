@@ -3,6 +3,8 @@
 import {
   Bell,
   Check,
+  Eye,
+  EyeOff,
   Loader2,
   LogOut,
   Plug,
@@ -16,6 +18,7 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { HelpHint } from "@/components/ui/help-hint";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -129,7 +132,7 @@ export default function SettingsPage() {
           ) : tab === "business" ? (
             <BusinessTab merchant={merchant} onUpdated={onUpdated} />
           ) : tab === "integrations" ? (
-            <IntegrationsTab merchant={merchant} />
+            <IntegrationsTab merchant={merchant} onUpdated={onUpdated} />
           ) : tab === "notifications" ? (
             <NotificationsTab merchant={merchant} onUpdated={onUpdated} />
           ) : (
@@ -233,60 +236,437 @@ function BusinessTab({
   );
 }
 
-function IntegrationsTab({ merchant: _merchant }: { merchant: Merchant }) {
+function IntegrationsTab({
+  merchant,
+  onUpdated,
+}: {
+  merchant: Merchant;
+  onUpdated: (m: Merchant) => void;
+}) {
   return (
     <div className="flex flex-col gap-5">
-      <IntegrationCard
-        name="Shopify"
-        description="Lee tu catálogo y tus ventas."
-        connected
-        meta="Conectada · sincroniza al dar 'Sincronizar Shopify' en /productos"
-      />
-      <IntegrationCard
-        name="Meta Ads"
-        description="Crea campañas en pausa para que vos las actives."
-        connected
-        meta="Cuenta de anuncios conectada (development mode)"
-      />
-      <IntegrationCard
-        name="WhatsApp"
-        description="Por acá te aviso cuando armo una propuesta."
-        connected
-        meta="Bot de Vera conectado"
-      />
+      <ShopifyIntegration merchant={merchant} onUpdated={onUpdated} />
+      <MetaIntegration merchant={merchant} onUpdated={onUpdated} />
+      <WhatsappIntegration />
     </div>
   );
 }
 
-function IntegrationCard({
+function IntegrationShell({
   name,
   description,
   connected,
-  meta,
+  badgeOverride,
+  children,
 }: {
   name: string;
   description: string;
   connected: boolean;
-  meta: string;
+  badgeOverride?: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-3 rounded-2xl border border-line bg-bg-card p-5 shadow-card sm:flex-row sm:items-start sm:justify-between">
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <h3 className="text-base font-medium text-ink">{name}</h3>
-          {connected ? (
-            <Badge tone="success">
-              <Check className="h-3 w-3" strokeWidth={2.4} />
-              Conectada
-            </Badge>
-          ) : (
-            <Badge tone="neutral">Desconectada</Badge>
-          )}
+    <section className="flex flex-col gap-5 rounded-2xl border border-line bg-bg-card p-6 shadow-card">
+      <header className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-medium text-ink">{name}</h3>
+            {badgeOverride ??
+              (connected ? (
+                <Badge tone="success">
+                  <Check className="h-3 w-3" strokeWidth={2.4} />
+                  Conectada
+                </Badge>
+              ) : (
+                <Badge tone="neutral">Sin conectar</Badge>
+              ))}
+          </div>
+          <p className="text-sm text-ink-soft">{description}</p>
         </div>
-        <p className="text-sm text-ink-soft">{description}</p>
-        <span className="font-mono text-[11px] text-ink-mute">{meta}</span>
-      </div>
+      </header>
+      {children}
     </section>
+  );
+}
+
+function ShopifyIntegration({
+  merchant,
+  onUpdated,
+}: {
+  merchant: Merchant;
+  onUpdated: (m: Merchant) => void;
+}) {
+  const [domain, setDomain] = useState(merchant.shopify_shop_domain ?? "");
+  const [token, setToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const connected = Boolean(merchant.shopify_shop_domain && merchant.shopify_token_set);
+  const tokenChanged = token.length > 0;
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const updated = await api.patchMe({
+        shopify_shop_domain: domain.trim() || undefined,
+        shopify_admin_token: tokenChanged ? token.trim() : undefined,
+      });
+      onUpdated(updated);
+      setToken("");
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? `No pude guardar (HTTP ${err.status}).`
+          : "No pude guardar.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <IntegrationShell
+      name="Shopify"
+      description="Vera lee tu catálogo y tus ventas reales desde acá."
+      connected={connected}
+    >
+      <form onSubmit={save} className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="shopify-domain">Dominio de la tienda</Label>
+            <HelpHint
+              title="¿De dónde sale tu dominio?"
+              steps={[
+                <>
+                  Entrá a tu panel de Shopify Admin. La URL en el navegador se
+                  ve como <code className="font-mono text-[12px] text-ink">tu-tienda.myshopify.com</code>.
+                </>,
+                <>
+                  Copiá la parte que termina en <code className="font-mono text-[12px] text-ink">.myshopify.com</code>{" "}
+                  — incluyéndola.
+                </>,
+                <>
+                  No uses tu dominio público (ej.{" "}
+                  <code className="font-mono text-[12px] text-ink">tutienda.com.ar</code>),
+                  necesitamos el de Shopify.
+                </>,
+              ]}
+              link={{
+                href: "https://help.shopify.com/en/manual/intro-to-shopify/initial-setup/setup-your-store/your-store-name",
+                label: "Doc oficial de Shopify",
+              }}
+            />
+          </div>
+          <Input
+            id="shopify-domain"
+            value={domain}
+            onChange={(e) => setDomain(e.target.value)}
+            placeholder="tu-tienda.myshopify.com"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="shopify-token">
+              Admin API Access Token{" "}
+              {merchant.shopify_token_set && !tokenChanged && (
+                <span className="font-mono text-[11px] font-normal text-ink-mute">
+                  (ya guardado)
+                </span>
+              )}
+            </Label>
+            <HelpHint
+              title="Cómo conseguir el Admin Token"
+              steps={[
+                <>
+                  En Shopify Admin: <strong>Settings → Apps and sales channels → Develop apps</strong>.
+                </>,
+                <>
+                  <strong>Create an app</strong>, ponele "Vera". En{" "}
+                  <em>Configure Admin API scopes</em> habilitá{" "}
+                  <code className="font-mono text-[11px] text-ink">read_products</code>,{" "}
+                  <code className="font-mono text-[11px] text-ink">read_orders</code>,{" "}
+                  <code className="font-mono text-[11px] text-ink">read_inventory</code>.
+                </>,
+                <>
+                  <strong>Install app</strong> y copiá el{" "}
+                  <em>Admin API access token</em>. Empieza con{" "}
+                  <code className="font-mono text-[11px] text-ink">shpat_</code>.
+                </>,
+                <>El token sólo se muestra una vez — guardalo bien.</>,
+              ]}
+              link={{
+                href: "https://help.shopify.com/en/manual/apps/app-types/custom-apps",
+                label: "Doc oficial de custom apps",
+              }}
+            />
+          </div>
+          <SecretInput
+            id="shopify-token"
+            value={token}
+            onChange={setToken}
+            show={showToken}
+            onToggleShow={() => setShowToken((v) => !v)}
+            placeholder={merchant.shopify_token_set ? "•••••••••••••• (cambialo si querés)" : "shpat_..."}
+          />
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <Button type="submit" disabled={busy}>
+            {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Guardar Shopify
+          </Button>
+        </div>
+      </form>
+    </IntegrationShell>
+  );
+}
+
+function MetaIntegration({
+  merchant,
+  onUpdated,
+}: {
+  merchant: Merchant;
+  onUpdated: (m: Merchant) => void;
+}) {
+  const [adAccount, setAdAccount] = useState(merchant.meta_ad_account_id ?? "");
+  const [pageId, setPageId] = useState(merchant.meta_page_id ?? "");
+  const [token, setToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const connected = Boolean(
+    merchant.meta_ad_account_id &&
+      merchant.meta_page_id &&
+      merchant.meta_token_set,
+  );
+  const tokenChanged = token.length > 0;
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const updated = await api.patchMe({
+        meta_ad_account_id: adAccount.trim() || undefined,
+        meta_page_id: pageId.trim() || undefined,
+        meta_access_token: tokenChanged ? token.trim() : undefined,
+      });
+      onUpdated(updated);
+      setToken("");
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? `No pude guardar (HTTP ${err.status}).`
+          : "No pude guardar.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <IntegrationShell
+      name="Meta Ads"
+      description="Vera arma campañas en tu cuenta y las deja en pausa hasta tu OK."
+      connected={connected}
+    >
+      <form onSubmit={save} className="flex flex-col gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="meta-account">Ad Account ID</Label>
+              <HelpHint
+                title="¿Dónde está tu Ad Account ID?"
+                align="left"
+                steps={[
+                  <>Entrá a Meta Ads Manager.</>,
+                  <>
+                    En la URL vas a ver{" "}
+                    <code className="font-mono text-[11px] text-ink">act=XXXXXXXXX</code>.
+                  </>,
+                  <>
+                    Copiá ese número y pegalo precedido por{" "}
+                    <code className="font-mono text-[11px] text-ink">act_</code>.
+                    Ej: <code className="font-mono text-[11px] text-ink">act_1234567890</code>.
+                  </>,
+                ]}
+                link={{
+                  href: "https://www.facebook.com/business/help/1492627900875762",
+                  label: "Cómo encontrar tu Ad Account",
+                }}
+              />
+            </div>
+            <Input
+              id="meta-account"
+              value={adAccount}
+              onChange={(e) => setAdAccount(e.target.value)}
+              placeholder="act_1234567890"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="meta-page">Page ID</Label>
+              <HelpHint
+                title="¿Cómo conseguir tu Page ID?"
+                align="left"
+                steps={[
+                  <>Entrá a tu Página de Facebook.</>,
+                  <>
+                    Andá a <strong>Configuración → Información de la página</strong>.
+                  </>,
+                  <>
+                    Bajá hasta el final: ahí está el <strong>ID de página</strong>{" "}
+                    (un número largo).
+                  </>,
+                ]}
+                link={{
+                  href: "https://www.facebook.com/business/help/1503421039731869",
+                  label: "Cómo encontrar tu Page ID",
+                }}
+              />
+            </div>
+            <Input
+              id="meta-page"
+              value={pageId}
+              onChange={(e) => setPageId(e.target.value)}
+              placeholder="1156194604234066"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="meta-token">
+              System User Access Token{" "}
+              {merchant.meta_token_set && !tokenChanged && (
+                <span className="font-mono text-[11px] font-normal text-ink-mute">
+                  (ya guardado)
+                </span>
+              )}
+            </Label>
+            <HelpHint
+              title="Cómo generar el access token"
+              steps={[
+                <>
+                  Andá a{" "}
+                  <strong>business.facebook.com → Business Settings → Users → System Users</strong>.
+                </>,
+                <>
+                  Crea un System User (rol Admin), asignalo a tu Ad Account y a
+                  tu Page con permisos completos.
+                </>,
+                <>
+                  Tocá <strong>Generate New Token</strong>. Pedí los scopes{" "}
+                  <code className="font-mono text-[11px] text-ink">ads_management</code>
+                  ,{" "}
+                  <code className="font-mono text-[11px] text-ink">pages_show_list</code>
+                  ,{" "}
+                  <code className="font-mono text-[11px] text-ink">business_management</code>
+                  .
+                </>,
+                <>Copiá el token y pegalo acá. No expira (a diferencia de los user tokens).</>,
+              ]}
+              link={{
+                href: "https://developers.facebook.com/docs/marketing-api/system-users",
+                label: "Doc oficial de System Users",
+              }}
+            />
+          </div>
+          <SecretInput
+            id="meta-token"
+            value={token}
+            onChange={setToken}
+            show={showToken}
+            onToggleShow={() => setShowToken((v) => !v)}
+            placeholder={merchant.meta_token_set ? "•••••••••••••• (cambialo si querés)" : "EAA..."}
+          />
+        </div>
+
+        <div className="flex items-start gap-2 rounded-xl border border-warning/30 bg-warning/10 p-3 text-xs text-yellow-800">
+          <span>
+            Los tokens viven encriptados en tu cuenta. Vera no los muestra en
+            claro y nunca los manda fuera del backend.
+          </span>
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <Button type="submit" disabled={busy}>
+            {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Guardar Meta
+          </Button>
+        </div>
+      </form>
+    </IntegrationShell>
+  );
+}
+
+function WhatsappIntegration() {
+  return (
+    <IntegrationShell
+      name="WhatsApp"
+      description="Por acá Vera te avisa cuando arma una propuesta."
+      connected
+      badgeOverride={
+        <Badge tone="success">
+          <Check className="h-3 w-3" strokeWidth={2.4} />
+          Bot conectado
+        </Badge>
+      }
+    >
+      <p className="text-sm text-ink-soft">
+        El bot de Vera ya está dado de alta. Configurás tu número personal en la
+        pestaña <strong className="text-ink">Notificaciones</strong>.
+      </p>
+    </IntegrationShell>
+  );
+}
+
+function SecretInput({
+  id,
+  value,
+  onChange,
+  show,
+  onToggleShow,
+  placeholder,
+}: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  show: boolean;
+  onToggleShow: () => void;
+  placeholder?: string;
+}) {
+  return (
+    <div className="relative">
+      <Input
+        id={id}
+        type={show ? "text" : "password"}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoComplete="off"
+        spellCheck={false}
+        className="pr-11 font-mono text-xs"
+      />
+      <button
+        type="button"
+        onClick={onToggleShow}
+        aria-label={show ? "Ocultar token" : "Mostrar token"}
+        className="absolute right-1.5 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-ink-mute transition-colors hover:bg-bg-soft hover:text-ink"
+      >
+        {show ? (
+          <EyeOff className="h-3.5 w-3.5" strokeWidth={1.8} />
+        ) : (
+          <Eye className="h-3.5 w-3.5" strokeWidth={1.8} />
+        )}
+      </button>
+    </div>
   );
 }
 

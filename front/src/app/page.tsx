@@ -347,12 +347,9 @@ export default function LandingPage() {
                 </span>
               </span>
 
-              <h2 className="text-balance text-4xl font-medium leading-[1.05] tracking-tight sm:text-5xl md:text-6xl">
-                Dejá que{" "}
-                <span className="inline-flex items-baseline">
-                  <Wordmark size="lg" inverted className="!text-[1em]" />
-                </span>{" "}
-                trabaje por vos{" "}
+              <h2 className="text-balance text-4xl font-medium leading-[1.08] tracking-tight text-white sm:text-5xl">
+                Dejá que <span className="text-accent">vere</span>
+                <span className="text-white">nice</span> trabaje por vos{" "}
                 <span className="font-serif italic text-accent">esta noche</span>.
               </h2>
 
@@ -458,7 +455,7 @@ export default function LandingPage() {
           <div className="flex flex-col gap-2">
             <Wordmark size="sm" />
             <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-mute">
-              Hecho en Córdoba, Argentina · Platanus Hack 26
+              Hecho en Buenos Aires
             </p>
           </div>
           <div className="flex items-center gap-6 text-sm text-ink-soft">

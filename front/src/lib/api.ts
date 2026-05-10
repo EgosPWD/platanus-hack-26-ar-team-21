@@ -70,6 +70,14 @@ export type Merchant = {
   whatsapp_phone: string | null;
   currency: string;
   shopify_trigger_every_n_orders: number;
+  // Credenciales — el backend devuelve sólo metadata segura (dominio,
+  // ad account id, page id) y nunca los tokens en claro. Para los tokens
+  // sólo recibimos un boolean indicando si están seteados.
+  shopify_shop_domain: string | null;
+  shopify_token_set: boolean;
+  meta_ad_account_id: string | null;
+  meta_page_id: string | null;
+  meta_token_set: boolean;
   created_at: string;
 };
 
@@ -228,6 +236,11 @@ export const api = {
     whatsapp_phone?: string;
     currency?: string;
     shopify_trigger_every_n_orders?: number;
+    shopify_shop_domain?: string;
+    shopify_admin_token?: string;
+    meta_ad_account_id?: string;
+    meta_page_id?: string;
+    meta_access_token?: string;
   }) => apiFetch<Merchant>("/me", { method: "PATCH", body }),
   getProducts: () => apiFetch<Product[]>("/products"),
   getSalesSummary: (days = 7) =>
